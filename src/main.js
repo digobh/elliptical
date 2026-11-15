@@ -1,6 +1,7 @@
 import { FtmsMachine } from './ble/ftms-device.js';
 import { SimulatedMachine } from './ble/simulator.js';
 import { inspectDevice } from './ble/inspector.js';
+import { describeError } from './errors.js';
 import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js';
 import { WorkoutEngine } from './workout/engine.js';
 import { renderProfile } from './ui/profile-chart.js';
@@ -39,20 +40,40 @@ if (!FtmsMachine.isSupported()) {
     'This browser has no Web Bluetooth. Use Chrome or Edge on Android / Windows / macOS, or the Bluefy browser on iPhone/iPad. The simulator works everywhere.';
   $('btn-ble').disabled = true;
   $('btn-inspect').disabled = true;
+  $('btn-inspect-compat').disabled = true;
 }
 
-$('btn-inspect').onclick = async () => {
+async function runInspector(compat) {
   const pre = $('inspect-out');
   pre.hidden = false;
   pre.textContent = 'Pick your machine in the browser dialog…\n';
+  let report = '';
+  const add = (line) => { report += line + '\n'; pre.textContent += line + '\n'; };
   try {
-    const report = await inspectDevice((line) => { pre.textContent += line + '\n'; });
-    $('btn-copy-report').hidden = false;
-    $('btn-copy-report').onclick = () => navigator.clipboard.writeText(report);
+    await inspectDevice(add, { compat });
   } catch (e) {
-    pre.textContent += `Error: ${e.message}\n`;
+    add(`Error: ${describeError(e)}`);
+    add(`Browser: ${navigator.userAgent}`);
+    add('Tip: try "Inspect (compatibility mode)". Make sure the machine is on and not connected to iFit.');
   }
-};
+  $('btn-copy-report').hidden = false;
+  $('btn-copy-report').onclick = () => copyText(report);
+}
+$('btn-inspect').onclick = () => runInspector(false);
+$('btn-inspect-compat').onclick = () => runInspector(true);
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    $('btn-copy-report').textContent = 'Copied ✓';
+  } catch {
+    // Clipboard API blocked: select the text so the user can copy manually.
+    const r = document.createRange();
+    r.selectNodeContents($('inspect-out'));
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    $('btn-copy-report').textContent = 'Selected – tap Copy';
+  }
+}
 
 async function useMachine(m) {
   m.addEventListener('log', (e) => log(e.detail));
@@ -74,11 +95,11 @@ $('btn-ble').onclick = async () => {
   try {
     await useMachine(new FtmsMachine({ encoding: $('encoding').value }));
   } catch (e) {
-    log(`Bluetooth error: ${e.message}`);
+    log(`Bluetooth error: ${describeError(e)}`);
     $('ble-warning').hidden = false;
-    $('ble-warning').textContent = e.name === 'NotFoundError'
+    $('ble-warning').textContent = e?.name === 'NotFoundError'
       ? 'No machine selected. If your elliptical is not in the list, it may not support FTMS — see README for the QZ bridge option.'
-      : e.message;
+      : describeError(e);
   }
 };
 $('btn-sim').onclick = () => useMachine(new SimulatedMachine());
@@ -157,7 +178,7 @@ function openWorkout(circuit) {
     bus.dispatchEvent(new CustomEvent('workout', { detail: { state: s } }));
   });
 
-  engine.addEventListener('error', (e) => log(`Resistance error: ${e.detail.message ?? e.detail}`));
+  engine.addEventListener('error', (e) => log(`Resistance error: ${describeError(e.detail)}`));
 
   clearInterval(ticker);
   ticker = setInterval(() => engine.update(), 250);

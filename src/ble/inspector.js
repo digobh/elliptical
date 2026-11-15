@@ -29,12 +29,20 @@ const props = (p) => ['read', 'write', 'writeWithoutResponse', 'notify', 'indica
 const hex = (dv) => [...new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength)].map((b) => b.toString(16).padStart(2, '0')).join(' ');
 const ascii = (dv) => [...new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength)].map((b) => (b >= 32 && b < 127 ? String.fromCharCode(b) : '.')).join('');
 
-/** Returns a plain-text report. `onLine` streams progress. */
-export async function inspectDevice(onLine = () => {}) {
+/**
+ * Returns a plain-text report. `onLine` streams progress.
+ * `compat` uses only full lowercase 128-bit UUID strings, for browsers that
+ * reject short numeric UUIDs in optionalServices.
+ */
+export async function inspectDevice(onLine = () => {}, { compat = false } = {}) {
   const lines = [];
   const out = (s) => { lines.push(s); onLine(s); };
 
-  const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: OPTIONAL });
+  const optionalServices = compat
+    ? OPTIONAL.map((u) => (typeof u === 'number' ? uuid16(u) : u))
+    : OPTIONAL;
+  out(`Mode: ${compat ? 'compatibility' : 'standard'}`);
+  const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices });
   out(`Device: ${device.name || '(no name)'}  id=${device.id}`);
   const server = await device.gatt.connect();
   try {
