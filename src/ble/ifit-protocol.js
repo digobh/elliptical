@@ -68,13 +68,18 @@ export function frame(cmd, data, dev = DEVICE) {
   return [[0xfe, 0x02, msg.length, chunks.length + 1], ...packets];
 }
 
-/** Find a console acknowledgement "06 05 <cmd> <status> <checksum>" inside a notification. */
+/**
+ * Find a short console reply "06 L <cmd> <status> … <checksum>" (L = 5 or 6) inside a
+ * notification. Rejections are 5 bytes ("06 05 90 04 9f"); an accepted unlock is 6
+ * ("06 06 90 02 08 a6", recorded from the iFit app).
+ */
 export function findAck(bytes) {
   for (let i = 0; i + 4 < bytes.length; i++) {
-    if (bytes[i] === DEVICE && bytes[i + 1] === 0x05 &&
-        ((bytes[i] + bytes[i + 1] + bytes[i + 2] + bytes[i + 3]) & 0xff) === bytes[i + 4]) {
-      return { cmd: bytes[i + 2], status: bytes[i + 3] };
-    }
+    const L = bytes[i + 1];
+    if (bytes[i] !== DEVICE || (L !== 5 && L !== 6) || i + L > bytes.length) continue;
+    let sum = 0;
+    for (let j = i; j < i + L - 1; j++) sum += bytes[j];
+    if ((sum & 0xff) === bytes[i + L - 1]) return { cmd: bytes[i + 2], status: bytes[i + 3] };
   }
   return null;
 }
@@ -138,3 +143,71 @@ export function parseIfitPacket(data) {
 }
 
 export const toHex = (bytes) => [...bytes].map((x) => x.toString(16).padStart(2, '0')).join(' ');
+
+// ---------------------------------------------------------------------------
+// Message-level helpers (used by the 420E profile, recorded from the iFit app).
+
+/** Split one complete message (02 04 02 L …) into BLE packets, like frame(). */
+export function packetize(msg) {
+  const chunks = [];
+  for (let i = 0; i < msg.length; i += 18) chunks.push(msg.slice(i, i + 18));
+  return [[0xfe, 0x02, msg.length, chunks.length + 1],
+    ...chunks.map((c, i) => pad20([i === chunks.length - 1 ? 0xff : i, c.length, ...c]))];
+}
+
+/** Build a complete message: 02 04 02 L | dev L cmd data… checksum. */
+export function message(cmd, data, dev = DEVICE) {
+  const L = data.length + 4;
+  const body = [dev, L, cmd, ...data];
+  return [0x02, 0x04, 0x02, L, ...body, body.reduce((a, b) => a + b, 0) & 0xff];
+}
+
+/** Resistance write as the iFit app sends it: cmd 02, field mask 01 04, u16 value, no reads. */
+export function resistanceMessage(level, { levels, rawPerLevel }) {
+  const lvl = Math.max(1, Math.min(levels, Math.round(level)));
+  const raw = rawPerLevel * lvl - 1;
+  return message(CMD.WRITE_READ, [0x01, 0x04, raw & 0xff, (raw >> 8) & 0xff, 0x00]);
+}
+
+/**
+ * Reassembles console notifications into messages. Packets: a header
+ * "fe 02 <total> <count>" then chunks "<idx|ff> <n> bytes…" (rest is stale padding).
+ */
+export class Reassembler {
+  constructor() { this.buf = null; }
+  /** Returns a complete message (array of bytes) or null. */
+  push(bytes) {
+    const b = [...bytes];
+    if (b[0] === 0xfe && b[1] === 0x02) { this.buf = { total: b[2], bytes: [] }; return null; }
+    if (!this.buf) return null;
+    this.buf.bytes.push(...b.slice(2, 2 + b[1]));
+    if (b[0] !== 0xff) return null;
+    const msg = this.buf.bytes;
+    this.buf = null;
+    return msg;
+  }
+}
+
+/** Reply header: 01 04 02 L dev L cmd status … */
+export const replyInfo = (msg) => (msg.length >= 8 ? { cmd: msg[6], status: msg[7] } : null);
+
+/**
+ * Decode the 420E's reply to poll A (49 bytes). Field offsets found by lining
+ * the recording up with the resistance changes the iFit app made.
+ */
+export function parsePollA(msg, { rawPerLevel }) {
+  if (msg.length < 30 || msg[6] !== CMD.WRITE_READ || msg[7] !== 0x02) return null;
+  const d = msg.slice(8);
+  const u16 = (i) => d[i] | (d[i + 1] << 8);
+  const raw = u16(0);
+  return {
+    resistance: Math.round((raw + 1) / rawPerLevel),
+    resistanceRaw: raw,
+    powerW: u16(2),
+    distanceM: u16(4) | (u16(6) << 16),
+    cadence: u16(8),
+    mode: d[15],
+    elapsedS: u16(16),
+    speedKmh: u16(18) / 100,
+  };
+}

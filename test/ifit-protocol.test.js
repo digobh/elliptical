@@ -76,4 +76,46 @@ test('findAck decodes the 420E replies from the field log', () => {
   assert.deepEqual(findAck(hex('ff 09 01 04 02 05 06 05 90 04 9f c0 32 36 34 30 38 2d 50 50')), { cmd: 0x90, status: 0x04 });
   assert.deepEqual(findAck(hex('ff 09 01 04 02 05 06 05 02 08 15 00 ff ff ff ff ff ff ff ff')), { cmd: 0x02, status: 0x08 });
   assert.equal(findAck(hex('00 12 01 04 02 30 06 30 02 02 00 00 1e 00 57 00 00 00 24 00')), null);
+  // accepted unlock, recorded from the iFit app (6-byte reply)
+  assert.deepEqual(findAck(hex('ff 0a 01 04 02 06 06 06 90 02 08 a6 00 00 00 00 00 00 00 00')), { cmd: 0x90, status: 0x02 });
+});
+
+import { packetize, message, resistanceMessage, Reassembler, replyInfo, parsePollA } from '../src/ble/ifit-protocol.js';
+import { PROFILE_420E } from '../src/ble/ifit-420e.js';
+
+const hx = (s) => s.trim().split(/\s+/).map((x) => parseInt(x, 16));
+
+test('420E: messages rebuilt from parts equal the recorded iFit messages', () => {
+  const P = PROFILE_420E;
+  assert.equal(P.levels, 16);
+  assert.deepEqual(message(0x90, P.unlockKey), hx('02 04 02 28 06 28 90 07 01 ad e8 29 68 b5 f0 49 80 dd 28 79 c8 15 60 d9 30 6d c8 29 88 15 70 c9 20 bd 08 99 e8 75 c0 98 02 00 00 87'));
+  // every recorded resistance command (levels 1–13) is reproduced exactly
+  const recorded = { 1: '70 02 00 88', 2: 'e1 04 00 fb', 3: '52 07 00 6f', 4: 'c3 09 00 e2', 5: '34 0c 00 56',
+    6: 'a5 0e 00 c9', 7: '16 11 00 3d', 8: '87 13 00 b0', 9: 'f8 15 00 23', 10: '69 18 00 97',
+    11: 'da 1a 00 0a', 12: '4b 1d 00 7e', 13: 'bc 1f 00 f1' };
+  for (const [lvl, tail] of Object.entries(recorded)) {
+    assert.deepEqual(resistanceMessage(Number(lvl), P), hx(`02 04 02 09 06 09 02 01 04 ${tail}`), `level ${lvl}`);
+  }
+  for (const m of [...P.identify, ...P.setup, ...P.start, P.pollA, P.pollB, P.stop]) {
+    const body = m.slice(4, -1);
+    assert.equal(body.reduce((a, b) => a + b, 0) & 0xff, m[m.length - 1], 'checksum');
+    assert.equal(m[3], m.length - 4, 'length');
+  }
+});
+
+test('packetize + Reassembler round-trip, and the recorded unlock reply', () => {
+  const msg = PROFILE_420E.unlockKey.length ? message(0x90, PROFILE_420E.unlockKey) : [];
+  const r = new Reassembler();
+  let out = null;
+  for (const p of packetize(msg)) out = r.push(p) ?? out;
+  assert.deepEqual(out, msg);
+  assert.deepEqual(packetize(message(0x02, [0x01, 0x04, 0xc2, 0x01, 0x00])), resistancePackets(1));
+  assert.deepEqual(replyInfo(hx('01 04 02 06 06 06 90 02 08 a6')), { cmd: 0x90, status: 0x02 });
+});
+
+test('420E: decode a recorded poll-A reply', () => {
+  const reply = hx('01 04 02 2d 06 2d 02 02 e1 04 27 00 52 00 00 00 23 00 0a 00 00 00 00 02 0c 00 e9 02 0c 00 00 00 20 82 01 00 00 b4 00 1c 00 58 02 00 00 00 00 00 94');
+  assert.deepEqual(parsePollA(reply, PROFILE_420E), {
+    resistance: 2, resistanceRaw: 1249, powerW: 39, distanceM: 82, cadence: 35, mode: 2, elapsedS: 12, speedKmh: 7.45,
+  });
 });

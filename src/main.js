@@ -1,11 +1,11 @@
-import { FtmsMachine } from './ble/ftms-device.js?v=11';
-import { pickAndConnect } from './ble/connect.js?v=11';
-import { SimulatedMachine } from './ble/simulator.js?v=11';
-import { inspectDevice } from './ble/inspector.js?v=11';
-import { describeError } from './errors.js?v=11';
-import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=11';
-import { WorkoutEngine } from './workout/engine.js?v=11';
-import { renderProfile } from './ui/profile-chart.js?v=11';
+import { FtmsMachine } from './ble/ftms-device.js?v=13';
+import { pickAndConnect } from './ble/connect.js?v=13';
+import { SimulatedMachine } from './ble/simulator.js?v=13';
+import { inspectDevice } from './ble/inspector.js?v=13';
+import { describeError } from './errors.js?v=13';
+import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=13';
+import { WorkoutEngine } from './workout/engine.js?v=13';
+import { renderProfile } from './ui/profile-chart.js?v=13';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => {
@@ -192,7 +192,8 @@ function openWorkout(circuit) {
     const s = e.detail.state;
     $('btn-start').textContent = s === 'running' ? 'Pause' : s === 'paused' ? 'Resume' : s === 'finished' ? 'Restart' : 'Start';
     if (s === 'finished') { $('w-seg').textContent = 'Done! 🎉'; $('w-countdown').textContent = '0:00'; beep(660, 0.4); }
-    if (s === 'running') keepAwake(); else releaseWake();
+    if (s === 'running') { keepAwake(); machine.startWorkout?.(); } else releaseWake();
+    if (s === 'finished') machine.endWorkout?.();
     bus.dispatchEvent(new CustomEvent('workout', { detail: { state: s } }));
   });
 
