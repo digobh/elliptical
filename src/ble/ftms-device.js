@@ -6,7 +6,7 @@ import {
   UUID, OP,
   parseCrossTrainerData, parseIndoorBikeData, parseResistanceRange,
   parseFeatures, encodeSetResistance, parseControlResponse,
-} from './ftms-parse.js';
+} from './ftms-parse.js?v=5';
 
 const DEFAULT_RANGE = { min: 1, max: 24, step: 1 };
 

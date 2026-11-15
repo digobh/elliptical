@@ -1,10 +1,10 @@
-import { FtmsMachine } from './ble/ftms-device.js';
-import { SimulatedMachine } from './ble/simulator.js';
-import { inspectDevice } from './ble/inspector.js';
-import { describeError } from './errors.js';
-import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js';
-import { WorkoutEngine } from './workout/engine.js';
-import { renderProfile } from './ui/profile-chart.js';
+import { FtmsMachine } from './ble/ftms-device.js?v=5';
+import { SimulatedMachine } from './ble/simulator.js?v=5';
+import { inspectDevice } from './ble/inspector.js?v=5';
+import { describeError } from './errors.js?v=5';
+import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=5';
+import { WorkoutEngine } from './workout/engine.js?v=5';
+import { renderProfile } from './ui/profile-chart.js?v=5';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => {
