@@ -43,6 +43,42 @@ export const INIT_SEQUENCE = [
   pad20([0xff, 0x05, 0x00, 0x80, 0x01, 0x00, 0xa8]),
 ];
 
+/** Steps 0–11: identify the console. Steps 12–15: QZ's default unlock (0x90). Rest: start-up reads. */
+export const PRE_UNLOCK = INIT_SEQUENCE.slice(0, 12);
+export const DEFAULT_UNLOCK = INIT_SEQUENCE.slice(12, 16);
+export const POST_UNLOCK = INIT_SEQUENCE.slice(16);
+
+export const DEVICE = 0x06; // elliptical console address on the iFit bus
+export const CMD = { WRITE_READ: 0x02, UNLOCK: 0x90 };
+export const STATUS = { 0x02: 'accepted', 0x04: 'rejected (4)', 0x08: 'rejected (8)' };
+
+/**
+ * Frame an iFit message into BLE packets.
+ * Message: 02 04 02 L | dev L cmd data… checksum   (L = 3 + data + 1, checksum = sum(dev…data))
+ * Packets: fe 02 <total> <count incl. header>, then 18-byte chunks "00 12 …", "01 12 …",
+ * the last chunk is "ff <n> …"; every packet is padded to 20 bytes except the header.
+ */
+export function frame(cmd, data, dev = DEVICE) {
+  const L = data.length + 4;
+  const body = [dev, L, cmd, ...data];
+  const msg = [0x02, 0x04, 0x02, L, ...body, body.reduce((a, b) => a + b, 0) & 0xff];
+  const chunks = [];
+  for (let i = 0; i < msg.length; i += 18) chunks.push(msg.slice(i, i + 18));
+  const packets = chunks.map((c, i) => pad20([i === chunks.length - 1 ? 0xff : i, c.length, ...c]));
+  return [[0xfe, 0x02, msg.length, chunks.length + 1], ...packets];
+}
+
+/** Find a console acknowledgement "06 05 <cmd> <status> <checksum>" inside a notification. */
+export function findAck(bytes) {
+  for (let i = 0; i + 4 < bytes.length; i++) {
+    if (bytes[i] === DEVICE && bytes[i + 1] === 0x05 &&
+        ((bytes[i] + bytes[i + 1] + bytes[i + 2] + bytes[i + 3]) & 0xff) === bytes[i + 4]) {
+      return { cmd: bytes[i + 2], status: bytes[i + 3] };
+    }
+  }
+  return null;
+}
+
 /** Keep-alive / data-request cycle, one packet every 200 ms. */
 export const POLL_CYCLE = [
   [0xfe, 0x02, 0x17, 0x03],

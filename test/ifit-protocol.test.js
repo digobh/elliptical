@@ -49,3 +49,31 @@ test('parse cadence, speed and resistance packets', () => {
   assert.equal(parseIfitPacket(st), null, 'all-FF status is ignored');
   assert.equal(parseIfitPacket(new Uint8Array(10)), null);
 });
+
+import { frame, findAck, DEFAULT_UNLOCK, PRE_UNLOCK, POST_UNLOCK, CMD } from '../src/ble/ifit-protocol.js';
+import { UNLOCK_KEYS } from '../src/ble/ifit-keys.js';
+
+test('frame() reproduces QZ packets (resistance, poll, default unlock)', () => {
+  assert.deepEqual(frame(CMD.WRITE_READ, [0x01, 0x04, 0xc2, 0x01, 0x00]), resistancePackets(1));
+  const poll = frame(CMD.WRITE_READ, [0x00, 0x0d, 0x3c, 0x9e, 0x31, 0x00, 0x00, 0x40, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x81]);
+  assert.deepEqual(poll, POLL_CYCLE.slice(0, 3));
+  const defaultKey = UNLOCK_KEYS.find((k) => k.src.includes('nordictrackelliptical.cpp:initData10') && !k.src.includes('10b'));
+  assert.deepEqual(frame(CMD.UNLOCK, defaultKey.data), DEFAULT_UNLOCK);
+  assert.equal(PRE_UNLOCK.length + DEFAULT_UNLOCK.length + POST_UNLOCK.length, INIT_SEQUENCE.length);
+});
+
+test('all unlock keys frame to 4 packets of the right shape', () => {
+  assert.equal(UNLOCK_KEYS.length, 79);
+  for (const k of UNLOCK_KEYS) {
+    const pk = frame(CMD.UNLOCK, k.data);
+    assert.equal(pk.length, 4);
+    assert.deepEqual(pk[0], [0xfe, 0x02, 0x2c, 0x04]);
+  }
+});
+
+test('findAck decodes the 420E replies from the field log', () => {
+  const hex = (s) => s.split(' ').map((x) => parseInt(x, 16));
+  assert.deepEqual(findAck(hex('ff 09 01 04 02 05 06 05 90 04 9f c0 32 36 34 30 38 2d 50 50')), { cmd: 0x90, status: 0x04 });
+  assert.deepEqual(findAck(hex('ff 09 01 04 02 05 06 05 02 08 15 00 ff ff ff ff ff ff ff ff')), { cmd: 0x02, status: 0x08 });
+  assert.equal(findAck(hex('00 12 01 04 02 30 06 30 02 02 00 00 1e 00 57 00 00 00 24 00')), null);
+});

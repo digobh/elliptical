@@ -3,9 +3,14 @@
 // Protocol details: see ifit-protocol.js (ported from QZ, GPL-3.0).
 
 import {
-  IFIT, MAX_LEVEL, INIT_SEQUENCE, POLL_CYCLE, RESISTANCE_SLOT,
-  resistancePackets, parseIfitPacket, toHex,
-} from './ifit-protocol.js?v=9';
+  IFIT, MAX_LEVEL, PRE_UNLOCK, POST_UNLOCK, POLL_CYCLE, RESISTANCE_SLOT, CMD, STATUS,
+  resistancePackets, parseIfitPacket, toHex, frame, findAck,
+} from './ifit-protocol.js?v=10';
+import { UNLOCK_KEYS } from './ifit-keys.js?v=10';
+
+const KEY_STORE = 'ifit-unlock-key';
+const loadKey = () => { try { return localStorage.getItem(KEY_STORE); } catch { return null; } };
+const saveKey = (src) => { try { localStorage.setItem(KEY_STORE, src); } catch { /* private mode */ } };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -29,6 +34,8 @@ export class IfitMachine extends EventTarget {
     this._rx = 0;
     this._rxParsed = 0;
     this._lastSummary = 0;
+    this._ackWaiters = [];
+    this.unlocked = false;
   }
 
   log(msg) { this.dispatchEvent(new CustomEvent('log', { detail: msg })); }
@@ -52,17 +59,50 @@ export class IfitMachine extends EventTarget {
     notify.addEventListener('characteristicvaluechanged', (e) => this._onNotify(e.target.value));
     await notify.startNotifications();
 
-    this.log(`Initialising console (${INIT_SEQUENCE.length} steps, ~${Math.round(INIT_SEQUENCE.length * 0.4)} s)…`);
-    for (let i = 0; i < INIT_SEQUENCE.length; i++) {
-      await this._send(INIT_SEQUENCE[i]);
-      if (i % 5 === 4) this.log(`  init ${i + 1}/${INIT_SEQUENCE.length}`);
-      await sleep(400);
-    }
-    this.log(`Console ready – received ${this._rx} packets during start-up`);
+    this.log('Identifying console…');
+    for (const p of PRE_UNLOCK) { await this._send(p); await sleep(400); }
+
+    await this._unlock();
+
+    for (const p of POST_UNLOCK) { await this._send(p); await sleep(400); }
+    this.log(`Console ready${this.unlocked ? '' : ' (READ-ONLY: no unlock key accepted)'} – received ${this._rx} packets`);
     this.connected = true;
     this._running = true;
     this._pollLoop();
     return this;
+  }
+
+  /** Try known unlock keys until the console acknowledges one (status 02). */
+  async _unlock() {
+    const cached = loadKey();
+    const keys = [...UNLOCK_KEYS].sort((a, b) => (b.src === cached) - (a.src === cached));
+    this.log(`Unlocking: trying up to ${keys.length} known iFit keys${cached ? ' (saved key first)' : ''}…`);
+    for (let i = 0; i < keys.length && this._device.gatt.connected; i++) {
+      const ack = this._waitAck(CMD.UNLOCK, 1500);
+      for (const p of frame(CMD.UNLOCK, keys[i].data)) await this._send(p);
+      const res = await ack;
+      const verdict = res ? STATUS[res.status] ?? `status ${res.status}` : 'no reply';
+      if (res?.status === 0x02) {
+        this.unlocked = true;
+        saveKey(keys[i].src);
+        this.log(`✅ Unlock key ${i + 1}/${keys.length} accepted (${keys[i].src})`);
+        return;
+      }
+      this.log(`  key ${i + 1}/${keys.length}: ${verdict}`);
+      await sleep(150);
+    }
+    this.log('❌ No known unlock key was accepted. Live data still works; resistance control will not.');
+  }
+
+  _waitAck(cmd, timeoutMs) {
+    return new Promise((resolve) => {
+      const w = { cmd, resolve };
+      this._ackWaiters.push(w);
+      setTimeout(() => {
+        const i = this._ackWaiters.indexOf(w);
+        if (i >= 0) { this._ackWaiters.splice(i, 1); resolve(null); }
+      }, timeoutMs);
+    });
   }
 
   async _send(bytes) {
@@ -81,8 +121,9 @@ export class IfitMachine extends EventTarget {
           const level = this._pendingLevel;
           this._pendingLevel = null;
           const pk = resistancePackets(level);
+          const ack = this._waitAck(CMD.WRITE_READ, 1500);
           for (const p of pk) await this._send(p);
-          this.log(`Set resistance ${level}: sent ${toHex(pk[1].slice(0, 15))}`);
+          ack.then((res) => this.log(`Set resistance ${level}: ${res ? STATUS[res.status] ?? `status ${res.status}` : 'no reply'}`));
         }
       } catch (e) {
         this.log(`Write failed: ${e?.message ?? e} (rx so far: ${this._rx})`);
@@ -97,7 +138,12 @@ export class IfitMachine extends EventTarget {
     const hex = toHex(bytes);
     this._rx++;
     if (this.rawLog) this.log(`<< ${hex}`);
-    else if (!this._seen.has(hex) && this._seen.size < 120) { this._seen.add(hex); this.log(`<< ${hex}`); }
+    else if (!this._seen.has(hex) && this._seen.size < 300) { this._seen.add(hex); this.log(`<< ${hex}`); }
+    const ack = findAck(bytes);
+    if (ack) {
+      const i = this._ackWaiters.findIndex((w) => w.cmd === ack.cmd);
+      if (i >= 0) this._ackWaiters.splice(i, 1)[0].resolve(ack);
+    }
     const d = parseIfitPacket(bytes);
     const now = Date.now();
     if (now - this._lastSummary > 10000) {
