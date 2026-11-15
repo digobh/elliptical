@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0e1116">
   <title>Elliptical Circuits</title>
-  <link rel="stylesheet" href="styles.css?v=13">
+  <link rel="stylesheet" href="styles.css?v=15">
 </head>
 <body>
   <header class="topbar">
@@ -85,6 +85,10 @@
       </div>
       <h2>Choose a circuit</h2>
       <div id="circuit-list" class="grid"></div>
+      <div id="history" class="card history" hidden>
+        <h2>Recent workouts</h2>
+        <div id="history-list"></div>
+      </div>
     </section>
 
     <!-- 3. Workout -->
@@ -93,6 +97,12 @@
         <button id="btn-back" class="btn ghost">← Circuits</button>
         <h2 id="w-name"></h2>
         <span id="w-total" class="muted"></span>
+      </div>
+      <div id="w-diff" class="seg-ctl" role="radiogroup" aria-label="Difficulty"></div>
+      <div id="w-paused" class="banner banner-paused" hidden>Paused – start moving to resume</div>
+      <div id="w-nextup" class="banner banner-next" hidden>
+        <div>Next: <strong id="nu-label"></strong> · level <strong id="nu-level"></strong> <span id="nu-delta"></span></div>
+        <div id="nu-count" class="nu-count"></div>
       </div>
 
       <svg id="w-profile" class="profile big" aria-label="Circuit profile"></svg>
@@ -103,6 +113,7 @@
           <div id="w-seg" class="seg-label">Ready</div>
           <div id="w-countdown" class="countdown">--:--</div>
           <div class="muted small">Next: <span id="w-next">–</span></div>
+          <div id="w-coach" class="coach"></div>
         </div>
         <div class="now-level">
           <div class="muted small">Resistance</div>
@@ -111,7 +122,7 @@
             <div id="w-level" class="level">–</div>
             <button id="btn-plus" class="btn round" aria-label="Raise resistance">+</button>
           </div>
-          <div class="muted small">Machine reports: <span id="w-mlevel">–</span></div>
+          <div id="w-sync" class="sync muted small">Machine: <span id="w-mlevel">–</span></div>
         </div>
       </div>
 
@@ -129,15 +140,38 @@
         <button id="btn-start" class="btn primary big">Start</button>
         <button id="btn-skip" class="btn">Skip segment</button>
         <button id="btn-stop" class="btn danger">End</button>
-        <label class="difficulty">Difficulty <span id="scale-val">100%</span>
-          <input id="scale" type="range" min="60" max="140" step="5" value="100">
-        </label>
+      </div>
+      <div class="settings">
+        <label><input type="checkbox" id="opt-voice" checked> Spoken cues</label>
+        <label><input type="checkbox" id="opt-autopause" checked> Auto-pause when I stop</label>
       </div>
 
       <div id="sim-panel" class="card sim" hidden>
         <label>Simulator cadence: <strong id="sim-val">0</strong> strides/min (↑/↓ keys)
           <input id="sim-cadence" type="range" min="0" max="180" step="1" value="0">
         </label>
+      </div>
+    </section>
+
+    <!-- 4. Summary -->
+    <section id="summary" hidden>
+      <div class="summary-head">
+        <div>
+          <div class="muted small" id="s-date"></div>
+          <h2 id="s-title"></h2>
+          <div id="s-sub" class="muted"></div>
+        </div>
+        <div id="s-badge" class="badge"></div>
+      </div>
+      <div class="metrics" id="s-stats"></div>
+      <div class="card">
+        <div class="legend small"><span class="lg lg-level"></span> Resistance level <span class="lg lg-power"></span> Watts <span class="lg lg-cad"></span> Cadence</div>
+        <svg id="s-chart" class="summary-chart" aria-label="Workout chart"></svg>
+      </div>
+      <div class="controls">
+        <button id="s-done" class="btn primary big">Done</button>
+        <button id="s-repeat" class="btn">Repeat</button>
+        <button id="s-copy" class="btn">Copy summary</button>
       </div>
     </section>
 
@@ -148,7 +182,7 @@
     </details>
   </main>
 
-  <footer class="muted small app-version">v13</footer>
-  <script type="module" src="src/main.js?v=13"></script>
+  <footer class="muted small app-version">v15</footer>
+  <script type="module" src="src/main.js?v=15"></script>
 </body>
 </html>

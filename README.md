@@ -5,8 +5,13 @@ A web app that plays circuit workouts on a ProForm elliptical. It connects over 
 
 - 6 built-in circuits: Quick Sync Test, Rolling Hills, HIIT 30/30, Pyramid, Tabata, Endurance Climb
 - Live metrics: strides/min (with target), watts, speed, heart rate, distance, kcal
-- Manual −/+ override for the current segment, plus a global difficulty slider (60–140 %)
-- Audio cues (3-2-1 countdown + segment change), screen kept awake while riding
+- **Beginner / Intermediate / Advanced** for every circuit (intensity and interval length; remembered per circuit)
+- **Guided workout**: "Next up" countdown banner, spoken cues (segment, level, halfway), beeps,
+  cadence coaching relative to your own warm-up rhythm, a check that the machine reached the level,
+  and auto-pause/resume when you stop and start moving
+- **Summary screen** with time, distance, kcal, watts, level, cadence, "on pace" %, and a chart; past
+  workouts are saved on the device under *Recent workouts*
+- Manual −/+ override for the current segment; screen kept awake while riding
 - **Simulator mode**, so you can develop and demo without the machine
 
 **Live app:** https://digobh.github.io/elliptical/ (open in Chrome on Android, or **Bluefy** on iPhone/iPad)
@@ -86,6 +91,11 @@ src/
   ble/simulator.js      fake elliptical with the same interface
   workout/circuits.js   circuit definitions + %→level mapping
   workout/engine.js     clock, segments, pause/skip/nudge, pushes resistance
+  workout/difficulty.js Beginner / Intermediate / Advanced transforms
+  workout/coach.js      relative cadence targets + auto-pause detection
+  workout/recorder.js   per-second samples → workout summary
+  workout/history.js    saved workouts (localStorage)
+  ui/summary-chart.js   level / watts / cadence chart
   ui/profile-chart.js   SVG circuit profile with playhead
   main.js               UI wiring + telemetry bus for the 3D phase
 ```
