@@ -125,3 +125,12 @@ input[type=range] { accent-color: var(--accent); }
 .small-btn { min-height: 32px; padding: 4px 10px; font-size: 13px; margin-top: 8px; }
 .calib { margin-bottom: 20px; }
 .calib .level-wrap { flex-wrap: wrap; margin: 8px 0; }
+
+.steps { margin: 4px 0 12px; padding-left: 20px; }
+.cal-sent { text-align: center; }
+.cal-status { color: var(--accent); min-height: 1.4em; }
+.numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 6px 0 14px; }
+.numpad .num { min-height: 52px; font-size: 20px; font-weight: 700; padding: 0; }
+.numpad .num:last-child { grid-column: span 5; font-size: 16px; font-weight: 500; }
+.numpad .num:active, .feel .btn:active { background: var(--accent); color: var(--accent-ink); }
+.feel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 6px 0 12px; }

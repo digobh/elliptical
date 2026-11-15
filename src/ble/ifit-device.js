@@ -5,8 +5,8 @@
 import {
   IFIT, MAX_LEVEL, PRE_UNLOCK, POST_UNLOCK, POLL_CYCLE, RESISTANCE_SLOT, CMD, STATUS,
   resistancePackets, parseIfitPacket, toHex, frame, findAck,
-} from './ifit-protocol.js?v=10';
-import { UNLOCK_KEYS } from './ifit-keys.js?v=10';
+} from './ifit-protocol.js?v=11';
+import { UNLOCK_KEYS } from './ifit-keys.js?v=11';
 
 const KEY_STORE = 'ifit-unlock-key';
 const loadKey = () => { try { return localStorage.getItem(KEY_STORE); } catch { return null; } };
@@ -123,7 +123,11 @@ export class IfitMachine extends EventTarget {
           const pk = resistancePackets(level);
           const ack = this._waitAck(CMD.WRITE_READ, 1500);
           for (const p of pk) await this._send(p);
-          ack.then((res) => this.log(`Set resistance ${level}: ${res ? STATUS[res.status] ?? `status ${res.status}` : 'no reply'}`));
+          ack.then((res) => {
+            const verdict = res ? STATUS[res.status] ?? `status ${res.status}` : 'no reply';
+            this.lastResistanceAck = verdict;
+            this.log(`Set resistance ${level}: ${verdict}`);
+          });
         }
       } catch (e) {
         this.log(`Write failed: ${e?.message ?? e} (rx so far: ${this._rx})`);

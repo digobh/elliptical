@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0e1116">
   <title>Elliptical Circuits</title>
-  <link rel="stylesheet" href="styles.css?v=10">
+  <link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body>
   <header class="topbar">
@@ -54,14 +54,33 @@
     <section id="picker" hidden>
       <div id="calib" class="card calib" hidden>
         <h2>Resistance test</h2>
-        <p class="muted small">Pedal slowly. Send a level, wait ~2 s, and note the level the <strong>console</strong> shows and whether it feels harder.</p>
+        <ol class="muted small steps">
+          <li>Pedal slowly and steadily.</li>
+          <li>Tap <strong>Send</strong>.</li>
+          <li>As soon as the number on the <strong>console</strong> changes, tap that number below (or <em>No change</em>).</li>
+          <li>Optionally tap how it felt. With <em>Auto-send next</em> on, the next level goes out by itself.</li>
+        </ol>
         <div class="level-wrap">
           <button id="cal-minus" class="btn round" aria-label="Lower test level">−</button>
-          <div id="cal-level" class="level">1</div>
+          <div class="cal-sent"><div class="muted small">App sends</div><div id="cal-level" class="level">1</div></div>
           <button id="cal-plus" class="btn round" aria-label="Raise test level">+</button>
           <button id="cal-send" class="btn primary">Send</button>
         </div>
-        <p class="small">Console reports: <strong id="cal-machine">–</strong></p>
+        <label class="small"><input type="checkbox" id="cal-auto" checked> Auto-send next level after I tap the console number</label>
+        <p id="cal-status" class="small cal-status">Tap Send to start.</p>
+        <div class="muted small">Console shows:</div>
+        <div id="cal-console" class="numpad"></div>
+        <div class="muted small">It felt:</div>
+        <div class="feel">
+          <button class="btn" data-feel="easier">Easier</button>
+          <button class="btn" data-feel="same">Same</button>
+          <button class="btn" data-feel="harder">Harder</button>
+        </div>
+        <p class="small">Bluetooth says console level: <strong id="cal-machine">–</strong></p>
+        <div class="row">
+          <button id="cal-copy" class="btn">Copy results</button>
+          <button id="cal-clear" class="btn ghost">Clear</button>
+        </div>
         <pre id="cal-history" class="report"></pre>
       </div>
       <h2>Choose a circuit</h2>
@@ -129,7 +148,7 @@
     </details>
   </main>
 
-  <footer class="muted small app-version">v10</footer>
-  <script type="module" src="src/main.js?v=10"></script>
+  <footer class="muted small app-version">v11</footer>
+  <script type="module" src="src/main.js?v=11"></script>
 </body>
 </html>

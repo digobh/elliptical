@@ -1,6 +1,6 @@
 // SVG bar chart of a circuit: bar width = duration, bar height = intensity.
 
-import { totalDuration } from '../workout/circuits.js?v=10';
+import { totalDuration } from '../workout/circuits.js?v=11';
 
 const NS = 'http://www.w3.org/2000/svg';
 const el = (name, attrs = {}) => {

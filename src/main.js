@@ -1,11 +1,11 @@
-import { FtmsMachine } from './ble/ftms-device.js?v=10';
-import { pickAndConnect } from './ble/connect.js?v=10';
-import { SimulatedMachine } from './ble/simulator.js?v=10';
-import { inspectDevice } from './ble/inspector.js?v=10';
-import { describeError } from './errors.js?v=10';
-import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=10';
-import { WorkoutEngine } from './workout/engine.js?v=10';
-import { renderProfile } from './ui/profile-chart.js?v=10';
+import { FtmsMachine } from './ble/ftms-device.js?v=11';
+import { pickAndConnect } from './ble/connect.js?v=11';
+import { SimulatedMachine } from './ble/simulator.js?v=11';
+import { inspectDevice } from './ble/inspector.js?v=11';
+import { describeError } from './errors.js?v=11';
+import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=11';
+import { WorkoutEngine } from './workout/engine.js?v=11';
+import { renderProfile } from './ui/profile-chart.js?v=11';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => {
@@ -228,21 +228,79 @@ $('scale').oninput = (e) => {
 };
 
 // ---------- Resistance test (calibration) ----------
+// One record per Send: what the app sent, what the rider saw on the console,
+// how long it took, how it felt, and what the console reported over Bluetooth.
 let calLevel = 1;
+let calCurrent = null; // record awaiting the rider's tap
+const calRecords = [];
 const calShow = () => { $('cal-level').textContent = calLevel; };
+const calStatus = (t) => { $('cal-status').textContent = t; };
+const fmtRec = (r) => `app ${String(r.sent).padStart(2)} → console ${r.shown ?? '?'}` +
+  `${r.secs != null ? ` (${r.secs.toFixed(1)} s)` : ''}${r.feel ? `, ${r.feel}` : ''}` +
+  ` · BT level ${r.bt} · cmd ${r.ack ?? '?'}`;
+const calRender = () => { $('cal-history').textContent = calRecords.map(fmtRec).reverse().join('\n'); };
+
+for (const n of [...Array(20).keys()].map((i) => i + 1).concat(['No change'])) {
+  const b = document.createElement('button');
+  b.className = 'btn num';
+  b.textContent = n;
+  b.onclick = () => calTapConsole(n);
+  $('cal-console').append(b);
+}
+document.querySelectorAll('.feel [data-feel]').forEach((b) => {
+  b.onclick = () => {
+    const r = calRecords[calRecords.length - 1];
+    if (!r) return;
+    r.feel = b.dataset.feel;
+    calRender();
+    log(`TEST: ${fmtRec(r)}`);
+  };
+});
+
 $('cal-minus').onclick = () => { calLevel = Math.max(machine.range.min, calLevel - 1); calShow(); };
 $('cal-plus').onclick = () => { calLevel = Math.min(machine.range.max, calLevel + 1); calShow(); };
-$('cal-send').onclick = async () => {
-  const sent = calLevel;
-  await machine.setResistance(sent);
-  log(`TEST: app level ${sent} queued`);
-  // Record what the console reports ~2.5 s later.
-  setTimeout(() => {
-    const line = `app ${String(sent).padStart(2)} → console reports ${$('w-mlevel').textContent}`;
-    $('cal-history').textContent = line + '\n' + $('cal-history').textContent;
-    log(`TEST: ${line}`);
-  }, 2500);
+$('cal-send').onclick = () => calSend();
+
+async function calSend() {
+  const rec = { sent: calLevel, at: performance.now(), shown: null, secs: null, feel: null, bt: '–', ack: null };
+  calRecords.push(rec);
+  calCurrent = rec;
+  calRender();
+  calStatus(`Sent level ${rec.sent}. Watch the console and tap the number it shows…`);
+  machine.lastResistanceAck = null;
+  await machine.setResistance(rec.sent);
+  // Pick up the console's Bluetooth acknowledgement when it arrives.
+  const t = setInterval(() => {
+    if (machine.lastResistanceAck) { rec.ack = machine.lastResistanceAck; calRender(); clearInterval(t); }
+  }, 200);
+  setTimeout(() => clearInterval(t), 5000);
+}
+
+function calTapConsole(n) {
+  const rec = calCurrent;
+  if (!rec) { calStatus('Tap Send first.'); return; }
+  rec.shown = n;
+  rec.secs = (performance.now() - rec.at) / 1000;
+  rec.bt = $('cal-machine').textContent;
+  calCurrent = null;
+  calRender();
+  log(`TEST: ${fmtRec(rec)}`);
+  if ($('cal-auto').checked && calLevel < machine.range.max) {
+    calLevel += 1;
+    calShow();
+    calStatus(`Recorded. Sending level ${calLevel} in 1 s…`);
+    setTimeout(calSend, 1000);
+  } else {
+    calStatus(calLevel >= machine.range.max ? 'Done – reached the top level. Tap Copy results.' : 'Recorded. Tap Send for the next one.');
+  }
+}
+
+$('cal-copy').onclick = async () => {
+  const text = 'Resistance test results\n' + calRecords.map(fmtRec).join('\n');
+  try { await navigator.clipboard.writeText(text); $('cal-copy').textContent = 'Copied ✓'; }
+  catch { const r = document.createRange(); r.selectNodeContents($('cal-history')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
 };
+$('cal-clear').onclick = () => { calRecords.length = 0; calCurrent = null; calLevel = 1; calShow(); calRender(); calStatus('Cleared. Tap Send to start.'); };
 
 // ---------- Live data ----------
 function onData(d) {
