@@ -12,9 +12,9 @@ import {
   IFIT, MAX_LEVEL, PRE_UNLOCK, POST_UNLOCK, POLL_CYCLE, RESISTANCE_SLOT, CMD, STATUS,
   resistancePackets, parseIfitPacket, toHex, frame, findAck,
   packetize, message, resistanceMessage, Reassembler, replyInfo, parsePollA,
-} from './ifit-protocol.js?v=16';
-import { UNLOCK_KEYS } from './ifit-keys.js?v=16';
-import { PROFILE_420E } from './ifit-420e.js?v=16';
+} from './ifit-protocol.js?v=17';
+import { UNLOCK_KEYS } from './ifit-keys.js?v=17';
+import { PROFILE_420E } from './ifit-420e.js?v=17';
 
 const KEY_STORE = 'ifit-unlock-key';
 const loadKey = () => { try { return localStorage.getItem(KEY_STORE); } catch { return null; } };

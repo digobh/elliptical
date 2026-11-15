@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0e1116">
   <title>Elliptical Circuits</title>
-  <link rel="stylesheet" href="styles.css?v=16">
+  <link rel="stylesheet" href="styles.css?v=17">
 </head>
 <body>
   <header class="topbar">
@@ -99,7 +99,10 @@
         <h2 id="w-name"></h2>
         <span id="w-total" class="muted"></span>
       </div>
-      <div id="w-diff" class="seg-ctl" role="radiogroup" aria-label="Difficulty"></div>
+      <div class="w-options">
+        <div id="w-diff" class="seg-ctl" role="radiogroup" aria-label="Difficulty"></div>
+        <div id="w-time" class="time-ctl" aria-label="Workout time"></div>
+      </div>
       <div id="w-paused" class="banner banner-paused" hidden>Paused – start moving to resume</div>
       <div id="w-nextup" class="banner banner-next" hidden>
         <div>Next: <strong id="nu-label"></strong> · level <strong id="nu-level"></strong> <span id="nu-delta"></span></div>
@@ -183,7 +186,7 @@
     </details>
   </main>
 
-  <footer class="muted small app-version">v16</footer>
-  <script type="module" src="src/main.js?v=16"></script>
+  <footer class="muted small app-version">v17</footer>
+  <script type="module" src="src/main.js?v=17"></script>
 </body>
 </html>

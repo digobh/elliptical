@@ -178,3 +178,11 @@ input[type=range] { accent-color: var(--accent); }
 .hist-row .when { color: var(--muted); font-size: 13px; }
 .hist-row .stats { color: var(--muted); font-size: 13px; text-align: right; }
 .range-note { margin: -6px 0 12px; }
+
+/* Time picker */
+.time-ctl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.time-ctl .t-btn { width: 40px; min-height: 40px; padding: 0; font-size: 22px; line-height: 1; border-radius: 10px; }
+.time-ctl .t-val { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 6ch; }
+.time-ctl .t-reset { padding: 6px 8px; min-height: 32px; font-size: 13px; color: var(--accent); }
+.w-options { display: flex; gap: 12px 18px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.w-options .seg-ctl { margin-bottom: 0; }

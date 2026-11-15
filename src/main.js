@@ -1,16 +1,17 @@
-import { FtmsMachine } from './ble/ftms-device.js?v=16';
-import { pickAndConnect } from './ble/connect.js?v=16';
-import { SimulatedMachine } from './ble/simulator.js?v=16';
-import { inspectDevice } from './ble/inspector.js?v=16';
-import { describeError } from './errors.js?v=16';
-import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=16';
-import { WorkoutEngine } from './workout/engine.js?v=16';
-import { renderProfile } from './ui/profile-chart.js?v=16';
-import { renderSummaryChart } from './ui/summary-chart.js?v=16';
-import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty } from './workout/difficulty.js?v=16';
-import { WorkoutRecorder } from './workout/recorder.js?v=16';
-import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=16';
-import { loadHistory, saveWorkout } from './workout/history.js?v=16';
+import { FtmsMachine } from './ble/ftms-device.js?v=17';
+import { pickAndConnect } from './ble/connect.js?v=17';
+import { SimulatedMachine } from './ble/simulator.js?v=17';
+import { inspectDevice } from './ble/inspector.js?v=17';
+import { describeError } from './errors.js?v=17';
+import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=17';
+import { WorkoutEngine } from './workout/engine.js?v=17';
+import { renderProfile } from './ui/profile-chart.js?v=17';
+import { renderSummaryChart } from './ui/summary-chart.js?v=17';
+import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty } from './workout/difficulty.js?v=17';
+import { applyDuration, durationLimits } from './workout/duration.js?v=17';
+import { WorkoutRecorder } from './workout/recorder.js?v=17';
+import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=17';
+import { loadHistory, saveWorkout } from './workout/history.js?v=17';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => {
@@ -139,6 +140,47 @@ const prefs = {
 };
 const diffFor = (id) => prefs.get(`diff-${id}`, prefs.get('diff', 'intermediate'));
 const setDiff = (id, k) => { prefs.set(`diff-${id}`, k); prefs.set('diff', k); };
+
+// Custom time per circuit, stored as a factor of the suggested time so it
+// carries over when the difficulty changes. null = suggested time.
+const timeFactor = (id) => prefs.get(`time-${id}`, null);
+const setTimeFactor = (id, f) => prefs.set(`time-${id}`, f);
+
+/** Circuit with the chosen difficulty and time applied. */
+function buildCircuit(base, difficulty) {
+  const withDiff = applyDifficulty(base, difficulty);
+  const suggested = totalDuration(withDiff);
+  const f = timeFactor(base.id);
+  const target = f == null ? null : Math.round((suggested * f) / 60) * 60;
+  const c = applyDuration(withDiff, target);
+  return { ...c, suggestedS: suggested };
+}
+
+/** − 22 min + (Reset) control. `onChange` redraws the owner. */
+function timeControl(container, base, difficulty, onChange) {
+  const c = buildCircuit(base, difficulty);
+  const total = totalDuration(c);
+  const { min, max } = durationLimits(c.suggestedS);
+  const minutes = Math.round(total / 60);
+  const custom = timeFactor(base.id) != null;
+  container.innerHTML = `<button type="button" class="btn t-btn" aria-label="Shorter">−</button>
+    <span class="t-val"></span>
+    <button type="button" class="btn t-btn" aria-label="Longer">+</button>
+    <button type="button" class="btn ghost t-reset">Reset</button>`;
+  const [minus, plus] = container.querySelectorAll('.t-btn');
+  container.querySelector('.t-val').textContent = custom ? `${fmt(total)} (suggested ${fmt(c.suggestedS)})` : `${fmt(total)} suggested`;
+  container.querySelector('.t-reset').hidden = !custom;
+  const set = (m) => {
+    setTimeFactor(base.id, Math.abs(m * 60 - c.suggestedS) < 30 ? null : (m * 60) / c.suggestedS);
+    onChange();
+  };
+  minus.disabled = minutes <= min;
+  plus.disabled = minutes >= max;
+  minus.onclick = (e) => { e.stopPropagation(); set(Math.max(min, minutes - 1)); };
+  plus.onclick = (e) => { e.stopPropagation(); set(Math.min(max, minutes + 1)); };
+  container.querySelector('.t-reset').onclick = (e) => { e.stopPropagation(); setTimeFactor(base.id, null); onChange(); };
+  container.onclick = (e) => e.stopPropagation();
+}
 $('opt-voice').checked = prefs.get('voice', true);
 $('opt-autopause').checked = prefs.get('autopause', true);
 $('opt-voice').onchange = (e) => prefs.set('voice', e.target.checked);
@@ -171,15 +213,17 @@ function renderPicker() {
     const card = document.createElement('div');
     card.className = 'circuit';
     card.tabIndex = 0;
-    card.innerHTML = `<h3></h3><div class="seg-ctl"></div><svg class="profile"></svg><p></p><div class="meta"></div>`;
+    card.innerHTML = `<h3></h3><div class="seg-ctl"></div><svg class="profile"></svg><p></p>
+      <div class="time-ctl"></div><div class="meta"></div>`;
     card.querySelector('h3').textContent = base.name;
     card.querySelector('p').textContent = base.description;
     const draw = () => {
       const k = diffFor(base.id);
-      const c = applyDifficulty(base, k);
+      const c = buildCircuit(base, k);
       const levels = c.segments.map((s) => pctToLevel(s.pct, machine.range));
       renderProfile(card.querySelector('svg'), c, { height: 50 });
-      card.querySelector('.meta').textContent = `${fmt(totalDuration(c))} · levels ${Math.min(...levels)}–${Math.max(...levels)}`;
+      card.querySelector('.meta').textContent = `levels ${Math.min(...levels)}–${Math.max(...levels)}`;
+      timeControl(card.querySelector('.time-ctl'), base, k, draw);
       diffControl(card.querySelector('.seg-ctl'), k, (nk) => { setDiff(base.id, nk); draw(); }, { small: true });
     };
     draw();
@@ -229,7 +273,7 @@ let workout = null; // { base, circuit, difficulty, recorder, coach, watcher, au
 function openWorkout(base, difficulty = diffFor(base.id)) {
   clearInterval(ticker);
   clearInterval(workout?.sampler);
-  const circuit = applyDifficulty(base, difficulty);
+  const circuit = buildCircuit(base, difficulty);
   engine = new WorkoutEngine(machine);
   engine.load(circuit);
   chart = renderProfile($('w-profile'), circuit, { height: 100 });
@@ -259,6 +303,7 @@ function openWorkout(base, difficulty = diffFor(base.id)) {
     setDiff(base.id, k);
     openWorkout(base, k);
   });
+  timeControl($('w-time'), base, difficulty, () => { if (engine.state === 'idle') openWorkout(base, difficulty); });
 
   engine.addEventListener('segment', (e) => {
     const { index, segment, level } = e.detail;
@@ -314,6 +359,7 @@ function openWorkout(base, difficulty = diffFor(base.id)) {
     const s = e.detail.state;
     $('btn-start').textContent = s === 'running' ? 'Pause' : s === 'paused' ? 'Resume' : s === 'finished' ? 'Restart' : 'Start';
     $('w-diff').querySelectorAll('button').forEach((b) => { b.disabled = s !== 'idle'; });
+    $('w-time').hidden = s !== 'idle';
     if (s === 'running') { keepAwake(); machine.startWorkout?.(); } else releaseWake();
     if (s === 'finished') finishWorkout();
     bus.dispatchEvent(new CustomEvent('workout', { detail: { state: s } }));
