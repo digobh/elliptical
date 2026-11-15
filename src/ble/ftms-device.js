@@ -6,8 +6,9 @@ import {
   UUID, OP,
   parseCrossTrainerData, parseIndoorBikeData, parseResistanceRange,
   parseFeatures, encodeSetResistance, parseControlResponse,
-} from './ftms-parse.js?v=5';
+} from './ftms-parse.js?v=6';
 
+const FTMS_FULL = '00001826-0000-1000-8000-00805f9b34fb';
 const DEFAULT_RANGE = { min: 1, max: 24, step: 1 };
 
 export class FtmsMachine extends EventTarget {
@@ -37,8 +38,9 @@ export class FtmsMachine extends EventTarget {
       throw new Error('Web Bluetooth is not available in this browser. Use Chrome/Edge (or Bluefy on iOS).');
     }
     this._device = await navigator.bluetooth.requestDevice({
-      filters: [{ services: [UUID.FTMS_SERVICE] }],
-      optionalServices: [UUID.FTMS_SERVICE],
+      // Full 128-bit string: some iOS Web Bluetooth browsers reject short numeric UUIDs.
+      filters: [{ services: [FTMS_FULL] }],
+      optionalServices: [FTMS_FULL],
     });
     this.name = this._device.name || 'FTMS machine';
     this._device.addEventListener('gattserverdisconnected', () => {

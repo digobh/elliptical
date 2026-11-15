@@ -2,7 +2,7 @@
 // nothing at all. Turn whatever we get into something readable.
 export function describeError(e) {
   if (e == null) return `empty rejection (${e === null ? 'null' : 'undefined'})`;
-  if (typeof e === 'string') return e;
+  if (typeof e !== 'object') return `${String(e)} (${typeof e})`;
   const parts = [];
   if (e.name) parts.push(e.name);
   if (e.message) parts.push(e.message);

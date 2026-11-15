@@ -1,10 +1,10 @@
-import { FtmsMachine } from './ble/ftms-device.js?v=5';
-import { SimulatedMachine } from './ble/simulator.js?v=5';
-import { inspectDevice } from './ble/inspector.js?v=5';
-import { describeError } from './errors.js?v=5';
-import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=5';
-import { WorkoutEngine } from './workout/engine.js?v=5';
-import { renderProfile } from './ui/profile-chart.js?v=5';
+import { FtmsMachine } from './ble/ftms-device.js?v=6';
+import { SimulatedMachine } from './ble/simulator.js?v=6';
+import { inspectDevice } from './ble/inspector.js?v=6';
+import { describeError } from './errors.js?v=6';
+import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=6';
+import { WorkoutEngine } from './workout/engine.js?v=6';
+import { renderProfile } from './ui/profile-chart.js?v=6';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => {
@@ -40,27 +40,26 @@ if (!FtmsMachine.isSupported()) {
     'This browser has no Web Bluetooth. Use Chrome or Edge on Android / Windows / macOS, or the Bluefy browser on iPhone/iPad. The simulator works everywhere.';
   $('btn-ble').disabled = true;
   $('btn-inspect').disabled = true;
-  $('btn-inspect-compat').disabled = true;
 }
 
-async function runInspector(compat) {
+async function runInspector(mode) {
   const pre = $('inspect-out');
   pre.hidden = false;
   pre.textContent = 'Pick your machine in the browser dialog…\n';
   let report = '';
   const add = (line) => { report += line + '\n'; pre.textContent += line + '\n'; };
   try {
-    await inspectDevice(add, { compat });
+    await inspectDevice(add, { mode });
   } catch (e) {
     add(`Error: ${describeError(e)}`);
     add(`Browser: ${navigator.userAgent}`);
-    add('Tip: try "Inspect (compatibility mode)". Make sure the machine is on and not connected to iFit.');
+    add('Tip: pick another Search option and try again. Make sure the machine is on and not connected to iFit,');
+    add('and that Bluefy is allowed to use Bluetooth (iOS Settings → Bluefy → Bluetooth).');
   }
   $('btn-copy-report').hidden = false;
   $('btn-copy-report').onclick = () => copyText(report);
 }
-$('btn-inspect').onclick = () => runInspector(false);
-$('btn-inspect-compat').onclick = () => runInspector(true);
+$('btn-inspect').onclick = () => runInspector($('inspect-mode').value);
 
 async function copyText(text) {
   try {

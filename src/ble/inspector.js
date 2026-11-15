@@ -29,20 +29,41 @@ const props = (p) => ['read', 'write', 'writeWithoutResponse', 'notify', 'indica
 const hex = (dv) => [...new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength)].map((b) => b.toString(16).padStart(2, '0')).join(' ');
 const ascii = (dv) => [...new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength)].map((b) => (b >= 32 && b < 127 ? String.fromCharCode(b) : '.')).join('');
 
+const FULL = OPTIONAL.map((u) => (typeof u === 'number' ? uuid16(u) : u));
+
 /**
- * Returns a plain-text report. `onLine` streams progress.
- * `compat` uses only full lowercase 128-bit UUID strings, for browsers that
- * reject short numeric UUIDs in optionalServices.
+ * Different ways to ask the browser for a device. Bluefy (iOS) is pickier than
+ * Chrome, so the user can try each one.
  */
-export async function inspectDevice(onLine = () => {}, { compat = false } = {}) {
+export const MODES = {
+  ifit: {
+    label: 'iFit / fitness names',
+    options: () => ({
+      filters: [
+        { namePrefix: 'I_' }, { namePrefix: 'IFIT' }, { namePrefix: 'iFit' },
+        { namePrefix: 'ProForm' }, { namePrefix: 'PFEL' }, { services: [uuid16(0x1826)] },
+      ],
+      optionalServices: FULL,
+    }),
+  },
+  standard: { label: 'Any device', options: () => ({ acceptAllDevices: true, optionalServices: OPTIONAL }) },
+  compat: { label: 'Any device (full UUIDs)', options: () => ({ acceptAllDevices: true, optionalServices: FULL }) },
+  minimal: { label: 'Any device (name only)', options: () => ({ acceptAllDevices: true }) },
+};
+
+/** Returns a plain-text report. `onLine` streams progress. */
+export async function inspectDevice(onLine = () => {}, { mode = 'ifit' } = {}) {
   const lines = [];
   const out = (s) => { lines.push(s); onLine(s); };
 
-  const optionalServices = compat
-    ? OPTIONAL.map((u) => (typeof u === 'number' ? uuid16(u) : u))
-    : OPTIONAL;
-  out(`Mode: ${compat ? 'compatibility' : 'standard'}`);
-  const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices });
+  out(`Mode: ${mode}`);
+  try {
+    const avail = await navigator.bluetooth.getAvailability?.();
+    out(`Bluetooth available: ${avail === undefined ? 'unknown' : avail}`);
+  } catch (e) {
+    out(`Bluetooth availability check failed: ${typeof e} ${String(e)}`);
+  }
+  const device = await navigator.bluetooth.requestDevice(MODES[mode].options());
   out(`Device: ${device.name || '(no name)'}  id=${device.id}`);
   const server = await device.gatt.connect();
   try {
