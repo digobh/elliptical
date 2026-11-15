@@ -13,12 +13,13 @@ const KNOWN = {
   0x1816: 'Cycling Speed & Cadence',
   0x1818: 'Cycling Power',
   0x1814: 'Running Speed & Cadence',
-  '00001533-1412-efde-1523-785feabcd123': 'iFit / ICON proprietary ⚠️ needs custom driver or QZ bridge',
+  '00001533-1412-efde-1523-785feabcd123': 'iFit / ICON protocol ✅ supported by the iFit driver',
 };
 
 const uuid16 = (n) => `0000${n.toString(16).padStart(4, '0')}-0000-1000-8000-00805f9b34fb`;
 const OPTIONAL = Object.keys(KNOWN).map((k) => (/^\d+$/.test(k) ? Number(k) : k));
 const label = (u) => {
+  u = u.toLowerCase();
   for (const [k, v] of Object.entries(KNOWN)) {
     const full = /^\d+$/.test(k) ? uuid16(Number(k)) : k;
     if (full === u) return v;
@@ -81,10 +82,10 @@ export async function inspectDevice(onLine = () => {}, { mode = 'ifit' } = {}) {
         out(`  CHAR ${c.uuid}  [${props(c.properties)}]${value}`);
       }
     }
-    const uuids = services.map((s) => s.uuid);
+    const uuids = services.map((s) => s.uuid.toLowerCase());
     out('\nVERDICT:');
     if (uuids.includes(uuid16(0x1826))) out('  Standard FTMS found → use "Connect via Bluetooth".');
-    else if (uuids.includes('00001533-1412-efde-1523-785feabcd123')) out('  iFit proprietary protocol → needs the QZ bridge (or a custom driver).');
+    else if (uuids.includes('00001533-1412-efde-1523-785feabcd123')) out('  iFit protocol → supported: use "Connect via Bluetooth" and pick this device.');
     else out('  No known fitness service visible. Copy this report and share it.');
   } finally {
     server.disconnect();

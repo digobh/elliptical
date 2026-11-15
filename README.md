@@ -39,15 +39,17 @@ The app uses the standard Bluetooth **FTMS** (Fitness Machine Service, `0x1826`)
 Circuits store intensity as **% of the machine's range** (see `src/workout/circuits.js`). The engine converts it
 to a real level.
 
-### ProForm Endurance 420E
+### ProForm Endurance 420E and other iFit "I_EL" ellipticals
 
-The 420E is sold as "iFit Bluetooth" enabled. On iFit consoles of that generation this is usually
-iFit's **own** Bluetooth protocol, not standard FTMS. Expect it to be missing from the
-"Connect via Bluetooth" list. To confirm:
+These consoles use iFit's own Bluetooth protocol (service `00001533-1412-efde-1523-785feabcd123`),
+not FTMS. The app includes an **iFit driver** (`src/ble/ifit-*.js`) ported from the open-source
+[QZ / qdomyos-zwift](https://github.com/cagnulein/qdomyos-zwift) project (GPL-3.0). It is QZ's default
+`I_EL` variant: a 28-step console start-up, a 200 ms keep-alive poll, and resistance levels 1–20.
 
-1. Open *Advanced → Inspect Bluetooth device*, pick the machine (often named `I_EL…` or `IFIT…`), and read the **VERDICT**.
-2. If the verdict says iFit proprietary, use the QZ bridge described below. Use *Copy report* to share the exact
-   service list if a direct driver is wanted later. QZ is GPL-3.0 like this repo, so its protocol code can be ported.
+- Tap **Connect via Bluetooth** and pick **I_EL**. The driver is chosen automatically from the services the device exposes.
+- Start-up takes about 12 seconds. Then resistance changes reach the console within about 1 second of each segment change.
+- Live data from the console: cadence, speed and the console's own resistance level. Watts and heart rate aren't decoded yet.
+- Troubleshooting: tick *Advanced → Log raw Bluetooth data*, reproduce the problem, then use *Copy log*.
 
 ### If your ProForm does not show up / ignores resistance
 
@@ -60,12 +62,20 @@ ProForm/iFit models differ:
 - If it connects but resistance doesn't change, open *Advanced* and try the `uint8` / `sint16` command format.
 - Only one app can control the machine at a time. Close iFit (or QZ's own control) on other devices.
 
+## License
+
+GPL-3.0 (see `LICENSE`). The iFit protocol code is derived from QZ (GPL-3.0).
+
 ## Code map
 
 ```
 src/
   ble/ftms-parse.js     pure FTMS encode/decode (unit-tested)
-  ble/ftms-device.js    Web Bluetooth connection, command queue, ack handling
+  ble/connect.js        device picker, chooses the FTMS or iFit driver
+  ble/ftms-device.js    FTMS over Web Bluetooth, command queue, ack handling
+  ble/ifit-protocol.js  iFit I_EL packets + parsing (unit-tested against QZ)
+  ble/ifit-device.js    iFit driver: init sequence, keep-alive poll, resistance
+  ble/inspector.js      lists any device's services (diagnostics)
   ble/simulator.js      fake elliptical with the same interface
   workout/circuits.js   circuit definitions + %→level mapping
   workout/engine.js     clock, segments, pause/skip/nudge, pushes resistance

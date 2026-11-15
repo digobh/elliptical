@@ -1,10 +1,11 @@
-import { FtmsMachine } from './ble/ftms-device.js?v=6';
-import { SimulatedMachine } from './ble/simulator.js?v=6';
-import { inspectDevice } from './ble/inspector.js?v=6';
-import { describeError } from './errors.js?v=6';
-import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=6';
-import { WorkoutEngine } from './workout/engine.js?v=6';
-import { renderProfile } from './ui/profile-chart.js?v=6';
+import { FtmsMachine } from './ble/ftms-device.js?v=7';
+import { pickAndConnect } from './ble/connect.js?v=7';
+import { SimulatedMachine } from './ble/simulator.js?v=7';
+import { inspectDevice } from './ble/inspector.js?v=7';
+import { describeError } from './errors.js?v=7';
+import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=7';
+import { WorkoutEngine } from './workout/engine.js?v=7';
+import { renderProfile } from './ui/profile-chart.js?v=7';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => {
@@ -28,6 +29,10 @@ let ticker = null;
 let wakeLock = null;
 
 // ---------- Logging ----------
+$('btn-copy-log').onclick = async () => {
+  try { await navigator.clipboard.writeText($('log').textContent); $('btn-copy-log').textContent = 'Copied ✓'; }
+  catch { const r = document.createRange(); r.selectNodeContents($('log')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+};
 function log(msg) {
   const t = new Date().toLocaleTimeString();
   $('log').textContent = `[${t}] ${msg}\n` + $('log').textContent;
@@ -74,14 +79,15 @@ async function copyText(text) {
   }
 }
 
-async function useMachine(m) {
-  m.addEventListener('log', (e) => log(e.detail));
+/** `connected`: the machine is already connected (and logging) via pickAndConnect. */
+async function useMachine(m, { connected = false } = {}) {
+  if (!connected) m.addEventListener('log', (e) => log(e.detail));
   m.addEventListener('data', (e) => onData(e.detail));
   m.addEventListener('disconnect', () => {
     setStatus('Disconnected', 'pill-off');
     if (engine?.state === 'running') engine.pause();
   });
-  await m.connect();
+  if (!connected) await m.connect();
   machine = m;
   setStatus(m.kind === 'sim' ? 'Simulator' : `Connected: ${m.name}`, m.kind === 'sim' ? 'pill-sim' : 'pill-on');
   $('connect').hidden = true;
@@ -91,14 +97,26 @@ async function useMachine(m) {
 }
 
 $('btn-ble').onclick = async () => {
+  const btn = $('btn-ble');
+  btn.disabled = true;
+  btn.textContent = 'Connecting…';
+  $('log-wrap').open = true;
   try {
-    await useMachine(new FtmsMachine({ encoding: $('encoding').value }));
+    const m = await pickAndConnect({
+      encoding: $('encoding').value,
+      rawLog: $('raw-log').checked,
+      onLog: log,
+    });
+    await useMachine(m, { connected: true });
   } catch (e) {
     log(`Bluetooth error: ${describeError(e)}`);
     $('ble-warning').hidden = false;
     $('ble-warning').textContent = e?.name === 'NotFoundError'
-      ? 'No machine selected. If your elliptical is not in the list, it may not support FTMS — see README for the QZ bridge option.'
+      ? 'No machine selected. iFit ellipticals usually appear as "I_EL".'
       : describeError(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Connect via Bluetooth';
   }
 };
 $('btn-sim').onclick = () => useMachine(new SimulatedMachine());

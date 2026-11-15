@@ -6,7 +6,7 @@ import {
   UUID, OP,
   parseCrossTrainerData, parseIndoorBikeData, parseResistanceRange,
   parseFeatures, encodeSetResistance, parseControlResponse,
-} from './ftms-parse.js?v=6';
+} from './ftms-parse.js?v=7';
 
 const FTMS_FULL = '00001826-0000-1000-8000-00805f9b34fb';
 const DEFAULT_RANGE = { min: 1, max: 24, step: 1 };
@@ -33,11 +33,12 @@ export class FtmsMachine extends EventTarget {
 
   log(msg) { this.dispatchEvent(new CustomEvent('log', { detail: msg })); }
 
-  async connect() {
+  /** Pass a device already chosen by the user (connect.js), or omit to show the picker. */
+  async connect(device = null) {
     if (!FtmsMachine.isSupported()) {
       throw new Error('Web Bluetooth is not available in this browser. Use Chrome/Edge (or Bluefy on iOS).');
     }
-    this._device = await navigator.bluetooth.requestDevice({
+    this._device = device ?? await navigator.bluetooth.requestDevice({
       // Full 128-bit string: some iOS Web Bluetooth browsers reject short numeric UUIDs.
       filters: [{ services: [FTMS_FULL] }],
       optionalServices: [FTMS_FULL],
@@ -50,7 +51,7 @@ export class FtmsMachine extends EventTarget {
     });
 
     this.log(`Connecting to ${this.name}…`);
-    const server = await this._device.gatt.connect();
+    const server = this._device.gatt.connected ? this._device.gatt : await this._device.gatt.connect();
     const svc = await server.getPrimaryService(UUID.FTMS_SERVICE);
 
     // Optional characteristics: read what the machine tells us about itself.

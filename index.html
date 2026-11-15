@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0e1116">
   <title>Elliptical Circuits</title>
-  <link rel="stylesheet" href="styles.css?v=6">
+  <link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
   <header class="topbar">
@@ -17,7 +17,7 @@
     <!-- 1. Connect -->
     <section id="connect" class="card">
       <h2>Connect your machine</h2>
-      <p class="muted">Turn on the elliptical and close the iFit app on any other device (only one app can control it at a time).</p>
+      <p class="muted">Turn on the elliptical and close the iFit app on any other device (only one app can control it at a time). Works with standard FTMS machines and iFit ellipticals (they appear as <strong>I_EL</strong>).</p>
       <div class="row">
         <button id="btn-ble" class="btn primary">Connect via Bluetooth</button>
         <button id="btn-sim" class="btn">Use simulator</button>
@@ -32,6 +32,7 @@
           </select>
         </label>
         <p class="muted small">Change this only if the machine connects but ignores resistance changes.</p>
+        <label><input type="checkbox" id="raw-log"> Log raw Bluetooth data (for troubleshooting)</label>
         <hr>
         <p class="muted small">Machine not in the list? Inspect any Bluetooth device to see which protocol it speaks.</p>
         <div class="row">
@@ -111,11 +112,12 @@
 
     <details id="log-wrap" class="card log">
       <summary>Connection log</summary>
+      <button id="btn-copy-log" class="btn small-btn">Copy log</button>
       <pre id="log"></pre>
     </details>
   </main>
 
-  <footer class="muted small app-version">v6</footer>
-  <script type="module" src="src/main.js?v=6"></script>
+  <footer class="muted small app-version">v7</footer>
+  <script type="module" src="src/main.js?v=7"></script>
 </body>
 </html>
