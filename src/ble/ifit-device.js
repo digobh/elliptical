@@ -5,7 +5,7 @@
 import {
   IFIT, MAX_LEVEL, INIT_SEQUENCE, POLL_CYCLE, RESISTANCE_SLOT,
   resistancePackets, parseIfitPacket, toHex,
-} from './ifit-protocol.js?v=7';
+} from './ifit-protocol.js?v=8';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -23,6 +23,12 @@ export class IfitMachine extends EventTarget {
     this._machineLevel = null;
     this._state = {};
     this._running = false;
+    // Diagnostics (always on during the proof of concept): each distinct
+    // packet from the console is logged once, plus a summary every 10 s.
+    this._seen = new Set();
+    this._rx = 0;
+    this._rxParsed = 0;
+    this._lastSummary = 0;
   }
 
   log(msg) { this.dispatchEvent(new CustomEvent('log', { detail: msg })); }
@@ -34,7 +40,7 @@ export class IfitMachine extends EventTarget {
     device.addEventListener('gattserverdisconnected', () => {
       this._running = false;
       this.connected = false;
-      this.log('Disconnected');
+      this.log(`Disconnected (received ${this._rx} packets, ${this._rxParsed} understood)`);
       this.dispatchEvent(new Event('disconnect'));
     });
 
@@ -52,7 +58,7 @@ export class IfitMachine extends EventTarget {
       if (i % 5 === 4) this.log(`  init ${i + 1}/${INIT_SEQUENCE.length}`);
       await sleep(400);
     }
-    this.log('Console ready – resistance control active');
+    this.log(`Console ready – received ${this._rx} packets during start-up`);
     this.connected = true;
     this._running = true;
     this._pollLoop();
@@ -74,11 +80,12 @@ export class IfitMachine extends EventTarget {
         if (step === RESISTANCE_SLOT && this._pendingLevel != null) {
           const level = this._pendingLevel;
           this._pendingLevel = null;
-          for (const p of resistancePackets(level)) await this._send(p);
-          this.log(`Set resistance ${level}: sent`);
+          const pk = resistancePackets(level);
+          for (const p of pk) await this._send(p);
+          this.log(`Set resistance ${level}: sent ${toHex(pk[1].slice(0, 15))}`);
         }
       } catch (e) {
-        this.log(`Write failed: ${e?.message ?? e}`);
+        this.log(`Write failed: ${e?.message ?? e} (rx so far: ${this._rx})`);
       }
       step = (step + 1) % POLL_CYCLE.length;
       await sleep(200);
@@ -87,9 +94,18 @@ export class IfitMachine extends EventTarget {
 
   _onNotify(value) {
     const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
-    if (this.rawLog) this.log(`<< ${toHex(bytes)}`);
+    const hex = toHex(bytes);
+    this._rx++;
+    if (this.rawLog) this.log(`<< ${hex}`);
+    else if (!this._seen.has(hex) && this._seen.size < 120) { this._seen.add(hex); this.log(`<< ${hex}`); }
     const d = parseIfitPacket(bytes);
+    const now = Date.now();
+    if (now - this._lastSummary > 10000) {
+      this._lastSummary = now;
+      this.log(`rx ${this._rx} packets, ${this._rxParsed} understood · console level ${this._machineLevel ?? '?'} · cadence ${this._state.cadence ?? '?'}`);
+    }
     if (!d) return;
+    this._rxParsed++;
     if (d.resistance != null) this._machineLevel = d.resistance;
     Object.assign(this._state, d);
     this.dispatchEvent(new CustomEvent('data', { detail: { ...this._state } }));
