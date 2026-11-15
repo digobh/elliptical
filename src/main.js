@@ -1,16 +1,16 @@
-import { FtmsMachine } from './ble/ftms-device.js?v=15';
-import { pickAndConnect } from './ble/connect.js?v=15';
-import { SimulatedMachine } from './ble/simulator.js?v=15';
-import { inspectDevice } from './ble/inspector.js?v=15';
-import { describeError } from './errors.js?v=15';
-import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=15';
-import { WorkoutEngine } from './workout/engine.js?v=15';
-import { renderProfile } from './ui/profile-chart.js?v=15';
-import { renderSummaryChart } from './ui/summary-chart.js?v=15';
-import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty } from './workout/difficulty.js?v=15';
-import { WorkoutRecorder } from './workout/recorder.js?v=15';
-import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=15';
-import { loadHistory, saveWorkout } from './workout/history.js?v=15';
+import { FtmsMachine } from './ble/ftms-device.js?v=16';
+import { pickAndConnect } from './ble/connect.js?v=16';
+import { SimulatedMachine } from './ble/simulator.js?v=16';
+import { inspectDevice } from './ble/inspector.js?v=16';
+import { describeError } from './errors.js?v=16';
+import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=16';
+import { WorkoutEngine } from './workout/engine.js?v=16';
+import { renderProfile } from './ui/profile-chart.js?v=16';
+import { renderSummaryChart } from './ui/summary-chart.js?v=16';
+import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty } from './workout/difficulty.js?v=16';
+import { WorkoutRecorder } from './workout/recorder.js?v=16';
+import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=16';
+import { loadHistory, saveWorkout } from './workout/history.js?v=16';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => {
@@ -162,6 +162,9 @@ function diffControl(container, current, onPick, { small = false } = {}) {
 
 // ---------- Circuit picker ----------
 function renderPicker() {
+  const r = machine.range;
+  const who = machine.profile?.name ?? (machine.kind === 'sim' ? 'Simulator' : machine.name);
+  $('range-note').textContent = `${who}: resistance levels ${r.min}–${r.max}. Circuits are scaled to this range.`;
   const list = $('circuit-list');
   list.replaceChildren();
   for (const base of CIRCUITS) {

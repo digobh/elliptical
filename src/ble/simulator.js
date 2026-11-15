@@ -2,7 +2,8 @@
 // (and later the 3D world) can be developed and demoed without the hardware.
 
 export class SimulatedMachine extends EventTarget {
-  constructor({ range = { min: 1, max: 24, step: 1 } } = {}) {
+  // 16 levels, like the ProForm Endurance 420E.
+  constructor({ range = { min: 1, max: 16, step: 1 } } = {}) {
     super();
     this.kind = 'sim';
     this.name = 'Simulator';
@@ -44,7 +45,7 @@ export class SimulatedMachine extends EventTarget {
     const effortDrag = 1 - (this.resistance - this.range.min) / (this.range.max - this.range.min + 1) * 0.15;
     const goal = this.targetCadence * effortDrag;
     this.cadence += (goal - this.cadence) * Math.min(1, dt * 2);
-    const powerW = Math.max(0, this.cadence * (0.4 + this.resistance * 0.12));
+    const powerW = Math.max(0, this.cadence * (0.4 + this.resistance * 0.18));
     const speedKmh = this.cadence * 0.1;
     this.distanceM += (speedKmh / 3.6) * dt;
     this.kcal += (powerW * dt) / 1000 / 0.24 / 4.184; // ~24% efficiency

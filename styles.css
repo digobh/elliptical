@@ -177,3 +177,4 @@ input[type=range] { accent-color: var(--accent); }
 .hist-row:first-child { border-top: 0; }
 .hist-row .when { color: var(--muted); font-size: 13px; }
 .hist-row .stats { color: var(--muted); font-size: 13px; text-align: right; }
+.range-note { margin: -6px 0 12px; }
