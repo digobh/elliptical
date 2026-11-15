@@ -5,7 +5,7 @@
 import {
   IFIT, MAX_LEVEL, INIT_SEQUENCE, POLL_CYCLE, RESISTANCE_SLOT,
   resistancePackets, parseIfitPacket, toHex,
-} from './ifit-protocol.js?v=8';
+} from './ifit-protocol.js?v=9';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -106,7 +106,7 @@ export class IfitMachine extends EventTarget {
     }
     if (!d) return;
     this._rxParsed++;
-    if (d.resistance != null) this._machineLevel = d.resistance;
+    if (d.resistanceCode != null) this._machineLevel = `${d.resistance ?? '?'} (code ${d.resistanceCode})`;
     Object.assign(this._state, d);
     this.dispatchEvent(new CustomEvent('data', { detail: { ...this._state } }));
   }

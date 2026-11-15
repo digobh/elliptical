@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0e1116">
   <title>Elliptical Circuits</title>
-  <link rel="stylesheet" href="styles.css?v=8">
+  <link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body>
   <header class="topbar">
@@ -52,6 +52,18 @@
 
     <!-- 2. Pick a circuit -->
     <section id="picker" hidden>
+      <div id="calib" class="card calib" hidden>
+        <h2>Resistance test</h2>
+        <p class="muted small">Pedal slowly. Send a level, wait ~2 s, and note the level the <strong>console</strong> shows and whether it feels harder.</p>
+        <div class="level-wrap">
+          <button id="cal-minus" class="btn round" aria-label="Lower test level">−</button>
+          <div id="cal-level" class="level">1</div>
+          <button id="cal-plus" class="btn round" aria-label="Raise test level">+</button>
+          <button id="cal-send" class="btn primary">Send</button>
+        </div>
+        <p class="small">Console reports: <strong id="cal-machine">–</strong></p>
+        <pre id="cal-history" class="report"></pre>
+      </div>
       <h2>Choose a circuit</h2>
       <div id="circuit-list" class="grid"></div>
     </section>
@@ -117,7 +129,7 @@
     </details>
   </main>
 
-  <footer class="muted small app-version">v8</footer>
-  <script type="module" src="src/main.js?v=8"></script>
+  <footer class="muted small app-version">v9</footer>
+  <script type="module" src="src/main.js?v=9"></script>
 </body>
 </html>

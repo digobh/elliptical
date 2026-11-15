@@ -123,3 +123,5 @@ input[type=range] { accent-color: var(--accent); }
 
 .app-version { text-align: center; padding: 8px 0 24px; }
 .small-btn { min-height: 32px; padding: 4px 10px; font-size: 13px; margin-top: 8px; }
+.calib { margin-bottom: 20px; }
+.calib .level-wrap { flex-wrap: wrap; margin: 8px 0; }

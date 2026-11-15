@@ -94,7 +94,9 @@ export function parseIfitPacket(data) {
   const isStatus = b[0] === 0x00 && b[1] === 0x12 && b[2] === 0x01 && b[3] === 0x04 && b[4] === 0x02 &&
     [0x2e, 0x30, 0x31].includes(b[5]);
   const allFF = b.slice(12, 20).every((x) => x === 0xff);
-  if (isStatus && !allFF && b[11] in RES_CODES) return { resistance: RES_CODES[b[11]] };
+  if (isStatus && !allFF && b[11] !== 0) {
+    return { resistance: RES_CODES[b[11]] ?? null, resistanceCode: b[11] };
+  }
 
   return null;
 }

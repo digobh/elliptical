@@ -43,7 +43,7 @@ test('parse cadence, speed and resistance packets', () => {
   assert.deepEqual(parseIfitPacket(spd), { speedKmh: 10 });
 
   const st = new Uint8Array(20); st.set([0x00, 0x12, 0x01, 0x04, 0x02, 0x2e]); st[11] = 0x13;
-  assert.deepEqual(parseIfitPacket(st), { resistance: 10 });
+  assert.deepEqual(parseIfitPacket(st), { resistance: 10, resistanceCode: 0x13 });
 
   st.fill(0xff, 12, 20);
   assert.equal(parseIfitPacket(st), null, 'all-FF status is ignored');

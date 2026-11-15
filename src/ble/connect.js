@@ -1,9 +1,9 @@
 // One "Connect" button for every supported machine: ask the user to pick a
 // device, then choose the driver from the services it actually exposes.
 
-import { FtmsMachine } from './ftms-device.js?v=8';
-import { IfitMachine } from './ifit-device.js?v=8';
-import { IFIT } from './ifit-protocol.js?v=8';
+import { FtmsMachine } from './ftms-device.js?v=9';
+import { IfitMachine } from './ifit-device.js?v=9';
+import { IFIT } from './ifit-protocol.js?v=9';
 
 const FTMS = '00001826-0000-1000-8000-00805f9b34fb';
 

@@ -1,11 +1,11 @@
-import { FtmsMachine } from './ble/ftms-device.js?v=8';
-import { pickAndConnect } from './ble/connect.js?v=8';
-import { SimulatedMachine } from './ble/simulator.js?v=8';
-import { inspectDevice } from './ble/inspector.js?v=8';
-import { describeError } from './errors.js?v=8';
-import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=8';
-import { WorkoutEngine } from './workout/engine.js?v=8';
-import { renderProfile } from './ui/profile-chart.js?v=8';
+import { FtmsMachine } from './ble/ftms-device.js?v=9';
+import { pickAndConnect } from './ble/connect.js?v=9';
+import { SimulatedMachine } from './ble/simulator.js?v=9';
+import { inspectDevice } from './ble/inspector.js?v=9';
+import { describeError } from './errors.js?v=9';
+import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=9';
+import { WorkoutEngine } from './workout/engine.js?v=9';
+import { renderProfile } from './ui/profile-chart.js?v=9';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => {
@@ -93,6 +93,7 @@ async function useMachine(m, { connected = false } = {}) {
   $('connect').hidden = true;
   $('picker').hidden = false;
   $('sim-panel').hidden = m.kind !== 'sim';
+  $('calib').hidden = m.kind !== 'ifit';
   renderPicker();
 }
 
@@ -226,6 +227,23 @@ $('scale').oninput = (e) => {
   if (engine && engine.index < 0) $('w-level').textContent = engine.levelFor(0);
 };
 
+// ---------- Resistance test (calibration) ----------
+let calLevel = 1;
+const calShow = () => { $('cal-level').textContent = calLevel; };
+$('cal-minus').onclick = () => { calLevel = Math.max(machine.range.min, calLevel - 1); calShow(); };
+$('cal-plus').onclick = () => { calLevel = Math.min(machine.range.max, calLevel + 1); calShow(); };
+$('cal-send').onclick = async () => {
+  const sent = calLevel;
+  await machine.setResistance(sent);
+  log(`TEST: app level ${sent} queued`);
+  // Record what the console reports ~2.5 s later.
+  setTimeout(() => {
+    const line = `app ${String(sent).padStart(2)} → console reports ${$('w-mlevel').textContent}`;
+    $('cal-history').textContent = line + '\n' + $('cal-history').textContent;
+    log(`TEST: ${line}`);
+  }, 2500);
+};
+
 // ---------- Live data ----------
 function onData(d) {
   if (d.cadence != null) $('m-cadence').textContent = Math.round(d.cadence);
@@ -234,7 +252,11 @@ function onData(d) {
   if (d.heartRate) $('m-hr').textContent = d.heartRate;
   if (d.distanceM != null) $('m-dist').textContent = d.distanceM >= 1000 ? `${(d.distanceM / 1000).toFixed(2)} km` : `${d.distanceM} m`;
   if (d.kcal != null) $('m-kcal').textContent = d.kcal;
-  if (d.resistance != null) $('w-mlevel').textContent = d.resistance;
+  if (d.resistanceCode != null || d.resistance != null) {
+    const txt = d.resistanceCode != null ? `${d.resistance ?? '?'} (code ${d.resistanceCode})` : d.resistance;
+    $('w-mlevel').textContent = txt;
+    $('cal-machine').textContent = txt;
+  }
   bus.dispatchEvent(new CustomEvent('telemetry', { detail: d }));
 }
 
