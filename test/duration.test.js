@@ -31,3 +31,8 @@ test('a 22-minute circuit stretched to 33 minutes scales segments ~1.5×', () =>
   assert.equal(out.segments[0].duration, 270);   // 3-min warm-up → 4:30
   assert.equal(totalDuration(out), 1980);
 });
+
+test('specific protocols are marked fixed-time; the others are adjustable', () => {
+  const fixed = CIRCUITS.filter((c) => c.fixedTime).map((c) => c.id).sort();
+  assert.deepEqual(fixed, ['hiit-30-30', 'quick-test', 'tabata']);
+});

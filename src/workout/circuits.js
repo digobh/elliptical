@@ -10,6 +10,9 @@
 //   pct       intensity 0–100 (0 = lowest level, 100 = highest)
 //   cadence   optional target strides/min shown as a guide
 //   kind      'warmup' | 'work' | 'recover' | 'cooldown' (colour + future 3D terrain)
+//
+// Circuit fields: fixedTime = true for specific protocols (Tabata, 30/30, the
+// sync test) whose time can't be adjusted.
 
 const seg = (label, duration, pct, kind, cadence) => ({ label, duration, pct, kind, cadence });
 
@@ -18,6 +21,7 @@ const repeat = (n, segments) => Array.from({ length: n }, () => segments.map((s)
 export const CIRCUITS = [
   {
     id: 'quick-test',
+    fixedTime: true, // a specific protocol: interval lengths are the point
     name: 'Quick Sync Test',
     description: '2 minutes stepping through low → high → low. Use it to verify resistance control works.',
     segments: [
@@ -45,6 +49,7 @@ export const CIRCUITS = [
   },
   {
     id: 'hiit-30-30',
+    fixedTime: true, // a specific protocol: interval lengths are the point
     name: 'HIIT 30/30',
     description: '10 rounds of 30 s hard / 30 s easy. Short and intense.',
     segments: [
@@ -70,6 +75,7 @@ export const CIRCUITS = [
   },
   {
     id: 'tabata',
+    fixedTime: true, // a specific protocol: interval lengths are the point
     name: 'Tabata',
     description: '2 blocks of 8 × (20 s all-out / 10 s rest).',
     segments: [

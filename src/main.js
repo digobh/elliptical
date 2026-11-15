@@ -1,17 +1,17 @@
-import { FtmsMachine } from './ble/ftms-device.js?v=17';
-import { pickAndConnect } from './ble/connect.js?v=17';
-import { SimulatedMachine } from './ble/simulator.js?v=17';
-import { inspectDevice } from './ble/inspector.js?v=17';
-import { describeError } from './errors.js?v=17';
-import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=17';
-import { WorkoutEngine } from './workout/engine.js?v=17';
-import { renderProfile } from './ui/profile-chart.js?v=17';
-import { renderSummaryChart } from './ui/summary-chart.js?v=17';
-import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty } from './workout/difficulty.js?v=17';
-import { applyDuration, durationLimits } from './workout/duration.js?v=17';
-import { WorkoutRecorder } from './workout/recorder.js?v=17';
-import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=17';
-import { loadHistory, saveWorkout } from './workout/history.js?v=17';
+import { FtmsMachine } from './ble/ftms-device.js?v=18';
+import { pickAndConnect } from './ble/connect.js?v=18';
+import { SimulatedMachine } from './ble/simulator.js?v=18';
+import { inspectDevice } from './ble/inspector.js?v=18';
+import { describeError } from './errors.js?v=18';
+import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=18';
+import { WorkoutEngine } from './workout/engine.js?v=18';
+import { renderProfile } from './ui/profile-chart.js?v=18';
+import { renderSummaryChart } from './ui/summary-chart.js?v=18';
+import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty } from './workout/difficulty.js?v=18';
+import { applyDuration, durationLimits } from './workout/duration.js?v=18';
+import { WorkoutRecorder } from './workout/recorder.js?v=18';
+import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=18';
+import { loadHistory, saveWorkout } from './workout/history.js?v=18';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => {
@@ -150,7 +150,7 @@ const setTimeFactor = (id, f) => prefs.set(`time-${id}`, f);
 function buildCircuit(base, difficulty) {
   const withDiff = applyDifficulty(base, difficulty);
   const suggested = totalDuration(withDiff);
-  const f = timeFactor(base.id);
+  const f = base.fixedTime ? null : timeFactor(base.id);
   const target = f == null ? null : Math.round((suggested * f) / 60) * 60;
   const c = applyDuration(withDiff, target);
   return { ...c, suggestedS: suggested };
@@ -159,6 +159,11 @@ function buildCircuit(base, difficulty) {
 /** − 22 min + (Reset) control. `onChange` redraws the owner. */
 function timeControl(container, base, difficulty, onChange) {
   const c = buildCircuit(base, difficulty);
+  if (base.fixedTime) {
+    container.innerHTML = '<span class="t-val"></span> <span class="muted small">fixed protocol</span>';
+    container.querySelector('.t-val').textContent = fmt(totalDuration(c));
+    return;
+  }
   const total = totalDuration(c);
   const { min, max } = durationLimits(c.suggestedS);
   const minutes = Math.round(total / 60);
