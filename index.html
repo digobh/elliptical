@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0e1116">
   <title>Elliptical Circuits</title>
-  <link rel="stylesheet" href="styles.css?v=27">
+  <link rel="stylesheet" href="styles.css?v=30">
 </head>
 <body>
   <header class="topbar">
     <h1>Elliptical Circuits</h1>
     <div class="top-right">
       <span id="status" class="pill pill-off">Not connected</span>
+      <button id="btn-history" class="icon-btn" aria-label="History" title="History">📈</button>
       <button id="btn-settings" class="icon-btn" aria-label="Settings" title="Settings">⚙</button>
     </div>
   </header>
@@ -46,7 +47,7 @@
       <p id="range-note" class="muted small range-note"></p>
       <div id="circuit-list" class="grid"></div>
       <div id="history" class="card history" hidden>
-        <h2>Recent workouts</h2>
+        <div class="h-recent-head"><h2>Recent workouts</h2><button id="history-all" class="btn ghost">See all →</button></div>
         <div id="history-list"></div>
       </div>
     </section>
@@ -123,6 +124,22 @@
           <input id="sim-cadence" type="range" min="0" max="180" step="1" value="0">
         </label>
       </div>
+    </section>
+
+    <!-- 6. History -->
+    <section id="historypage" hidden>
+      <div class="workout-head">
+        <button id="h-back" class="btn ghost">← Back</button>
+        <h2>History</h2>
+      </div>
+      <div id="h-tabs" class="seg-ctl" role="tablist" aria-label="Period"></div>
+      <div class="h-nav">
+        <button id="h-prev" class="btn t-btn" aria-label="Previous">‹</button>
+        <strong id="h-label"></strong>
+        <button id="h-next" class="btn t-btn" aria-label="Next">›</button>
+        <button id="h-today" class="btn ghost">Today</button>
+      </div>
+      <div id="h-body"></div>
     </section>
 
     <!-- 5. Settings -->
@@ -258,7 +275,7 @@
 
   </main>
 
-  <footer class="muted small app-version">v27</footer>
-  <script type="module" src="src/main.js?v=27"></script>
+  <footer class="muted small app-version">v30</footer>
+  <script type="module" src="src/main.js?v=30"></script>
 </body>
 </html>

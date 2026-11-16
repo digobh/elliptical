@@ -1,22 +1,23 @@
-import { FtmsMachine } from './ble/ftms-device.js?v=27';
-import { pickAndConnect } from './ble/connect.js?v=27';
-import { SimulatedMachine } from './ble/simulator.js?v=27';
-import { inspectDevice } from './ble/inspector.js?v=27';
-import { describeError } from './errors.js?v=27';
-import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=27';
-import { WorkoutEngine } from './workout/engine.js?v=27';
-import { renderProfile } from './ui/profile-chart.js?v=27';
-import { renderSummaryChart } from './ui/summary-chart.js?v=27';
-import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty, ceilingFor } from './workout/difficulty.js?v=27';
-import { applyDuration, durationLimits } from './workout/duration.js?v=27';
-import { WorkoutRecorder } from './workout/recorder.js?v=27';
-import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=27';
-import { loadHistory, saveWorkout, clearHistory } from './workout/history.js?v=27';
-import { saveSession, loadSession, clearSession } from './workout/session.js?v=27';
-import { Voice, voiceQuality } from './ui/voice.js?v=27';
-import { CoachAudio } from './ui/coach-audio.js?v=27';
-import { CoachTalk } from './workout/talk.js?v=27';
-import { segClipId } from '../tools/voice-script.mjs?v=27';
+import { FtmsMachine } from './ble/ftms-device.js?v=30';
+import { pickAndConnect } from './ble/connect.js?v=30';
+import { SimulatedMachine } from './ble/simulator.js?v=30';
+import { inspectDevice } from './ble/inspector.js?v=30';
+import { describeError } from './errors.js?v=30';
+import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=30';
+import { WorkoutEngine } from './workout/engine.js?v=30';
+import { renderProfile } from './ui/profile-chart.js?v=30';
+import { renderSummaryChart } from './ui/summary-chart.js?v=30';
+import { HistoryView } from './ui/history-view.js?v=30';
+import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty, ceilingFor } from './workout/difficulty.js?v=30';
+import { applyDuration, durationLimits } from './workout/duration.js?v=30';
+import { WorkoutRecorder } from './workout/recorder.js?v=30';
+import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=30';
+import { loadHistory, saveWorkout, clearHistory } from './workout/history.js?v=30';
+import { saveSession, loadSession, clearSession } from './workout/session.js?v=30';
+import { Voice, voiceQuality } from './ui/voice.js?v=30';
+import { CoachAudio } from './ui/coach-audio.js?v=30';
+import { CoachTalk } from './workout/talk.js?v=30';
+import { segClipId } from '../tools/voice-script.mjs?v=30';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => {
@@ -269,7 +270,7 @@ function renderHistory() {
   $('history').hidden = h.length === 0;
   const list = $('history-list');
   list.replaceChildren();
-  for (const w of h.slice(0, 8)) {
+  for (const w of h.slice(0, 3)) {
     const row = document.createElement('div');
     row.className = 'hist-row';
     const when = new Date(w.date).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -277,10 +278,11 @@ function renderHistory() {
     row.querySelector('strong').textContent = `${w.circuit} · ${DIFFICULTIES[w.difficulty]?.label ?? ''}`;
     row.querySelector('.when').textContent = when;
     row.querySelector('.stats').textContent = `${fmt(w.durationS)} · ${fmtDist(w.distanceM)} · ${w.kcal} kcal`;
-    row.onclick = () => showSummary(w, null);
+    row.onclick = () => showSummary(w, null, { from: 'picker' });
     list.append(row);
   }
 }
+$('history-all').onclick = () => openHistory();
 
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${m ?? 0} m`);
 
@@ -311,7 +313,7 @@ renderChatty();
 $('opt-pace').checked = prefs.get('pace', true);
 $('opt-pace').onchange = (e) => prefs.set('pace', e.target.checked);
 
-const SECTIONS = ['connect', 'picker', 'workout', 'summary'];
+const SECTIONS = ['connect', 'picker', 'workout', 'summary', 'historypage'];
 let returnTo = 'connect';
 function openSettings() {
   if (!$('settings').hidden) return closeSettings();
@@ -337,6 +339,33 @@ function closeSettings() {
   window.scrollTo(0, 0);
 }
 $('btn-settings').onclick = openSettings;
+
+// ---------- History page ----------
+const historyView = new HistoryView({
+  root: $('historypage'),
+  difficultyLabel: (k) => DIFFICULTIES[k]?.label ?? '',
+  onOpen: (w) => showSummary(w, null, { from: 'historypage' }),
+});
+let historyReturn = 'connect';
+function openHistory() {
+  const visible = SECTIONS.find((id) => !$(id).hidden);
+  if (visible === 'historypage') return closeHistory();
+  if (!$('settings').hidden) $('settings').hidden = true;
+  else historyReturn = visible ?? 'connect';
+  if (historyReturn === 'summary' || historyReturn === 'historypage') historyReturn = machine ? 'picker' : 'connect';
+  SECTIONS.forEach((id) => { $(id).hidden = true; });
+  $('historypage').hidden = false;
+  historyView.show(loadHistory());
+  window.scrollTo(0, 0);
+}
+function closeHistory() {
+  $('historypage').hidden = true;
+  $(historyReturn).hidden = false;
+  if (historyReturn === 'picker') renderPicker();
+  window.scrollTo(0, 0);
+}
+$('btn-history').onclick = openHistory;
+$('h-back').onclick = closeHistory;
 $('set-back').onclick = closeSettings;
 $('set-reconnect').onclick = async () => {
   $('set-machine').textContent = 'Reconnecting…';
@@ -658,7 +687,7 @@ function finishWorkout() {
   showSummary(summary, w.base);
 }
 
-function showSummary(s, base) {
+function showSummary(s, base, { from = 'picker' } = {}) {
   const stats = [
     ['Time', fmt(s.durationS)],
     ['Distance', fmtDist(s.distanceM)],
@@ -690,15 +719,21 @@ function showSummary(s, base) {
   const baseCircuit = base ?? CIRCUITS.find((c) => c.id === s.circuitId);
   $('s-repeat').hidden = !baseCircuit || !machine;
   $('s-repeat').onclick = () => openWorkout(baseCircuit, s.difficulty);
-  $('s-done').onclick = () => { $('summary').hidden = true; $('picker').hidden = false; renderPicker(); window.scrollTo(0, 0); };
+  $('s-done').textContent = from === 'historypage' ? '← History' : 'Done';
+  $('s-done').onclick = () => {
+    $('summary').hidden = true;
+    if (from === 'historypage') { $('historypage').hidden = false; historyView.show(loadHistory()); }
+    else if (machine) { $('picker').hidden = false; renderPicker(); }
+    else $('connect').hidden = false;
+    window.scrollTo(0, 0);
+  };
   $('s-copy').onclick = async () => {
     const text = `${s.circuit} (${DIFFICULTIES[s.difficulty]?.label}) – ${$('s-date').textContent}\n` +
       stats.map(([k, v]) => `${k}: ${v}`).join('\n');
     try { await navigator.clipboard.writeText(text); $('s-copy').textContent = 'Copied ✓'; } catch { /* ignore */ }
   };
 
-  $('workout').hidden = true;
-  $('picker').hidden = true;
+  SECTIONS.forEach((id) => { $(id).hidden = true; });
   $('summary').hidden = false;
   renderSummaryChart($('s-chart'), s.series ?? [], { maxLevel: s.maxMachineLevel ?? machine?.range.max ?? 20 });
   window.scrollTo(0, 0);

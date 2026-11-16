@@ -12,7 +12,8 @@ export function renderSummaryChart(svg, series, { maxLevel }) {
   svg.replaceChildren();
   // Draw in real pixels so text stays readable on a phone.
   const W = Math.max(280, Math.round(svg.getBoundingClientRect().width) || 600);
-  const H = 180, padL = 22, padB = 16, padT = 6;
+  const H = Math.max(100, Math.round(svg.getBoundingClientRect().height) || 180);
+  const padL = 22, padB = 16, padT = 6;
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   if (series.length < 2) return;
 

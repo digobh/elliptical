@@ -7,7 +7,7 @@
 //   'segment'  { index, segment, level }
 //   'tick'     { elapsed, total, index, segmentElapsed, segmentRemaining, level }
 
-import { totalDuration, pctToLevel } from './circuits.js?v=27';
+import { totalDuration, pctToLevel } from './circuits.js?v=30';
 
 export class WorkoutEngine extends EventTarget {
   constructor(machine, { now = () => performance.now() } = {}) {

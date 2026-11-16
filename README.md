@@ -27,6 +27,9 @@ A web app that plays circuit workouts on a ProForm elliptical. It connects over 
   motivation every 60–90 s, hard-effort boosts, milestones. Phrases rotate like a shuffled deck.
   Edit lines in `tools/voice-script.mjs`, then `node tools/generate-voice.mjs` (needs an ElevenLabs key;
   only missing clips are generated). The phone's voice remains a fallback/option in *Voice* settings
+- **📈 History page**: Day (every workout in detail with a mini chart), Week (kcal / distance vs the
+  same days last week, Mon–Sun bars), Month (calendar heatmap, weekly breakdown, best day), plus streak
+  and personal records. The circuits screen shows the last 3 with *See all*
 - **Summary screen** with time, distance, kcal, watts, level, cadence, "on pace" %, and a chart; past
   workouts are saved on the device under *Recent workouts*
 - Manual −/+ override for the current segment; screen kept awake while riding
@@ -121,6 +124,8 @@ assets/voice/jessica/   89 coach clips + manifest (generated)
 tools/voice-script.mjs  everything the coach says
 tools/generate-voice.mjs  ElevenLabs generator
   ui/summary-chart.js   level / watts / cadence chart
+  ui/history-view.js    History page (day / week / month)
+  workout/stats.js      periods, totals, comparisons, calendar, streaks, records
   ui/profile-chart.js   SVG circuit profile with playhead
   main.js               UI wiring + telemetry bus for the 3D phase
 ```
