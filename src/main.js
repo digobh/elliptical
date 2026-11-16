@@ -1,22 +1,22 @@
-import { FtmsMachine } from './ble/ftms-device.js?v=25';
-import { pickAndConnect } from './ble/connect.js?v=25';
-import { SimulatedMachine } from './ble/simulator.js?v=25';
-import { inspectDevice } from './ble/inspector.js?v=25';
-import { describeError } from './errors.js?v=25';
-import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=25';
-import { WorkoutEngine } from './workout/engine.js?v=25';
-import { renderProfile } from './ui/profile-chart.js?v=25';
-import { renderSummaryChart } from './ui/summary-chart.js?v=25';
-import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty, ceilingFor } from './workout/difficulty.js?v=25';
-import { applyDuration, durationLimits } from './workout/duration.js?v=25';
-import { WorkoutRecorder } from './workout/recorder.js?v=25';
-import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=25';
-import { loadHistory, saveWorkout } from './workout/history.js?v=25';
-import { saveSession, loadSession, clearSession } from './workout/session.js?v=25';
-import { Voice, voiceQuality } from './ui/voice.js?v=25';
-import { CoachAudio } from './ui/coach-audio.js?v=25';
-import { CoachTalk } from './workout/talk.js?v=25';
-import { segClipId } from '../tools/voice-script.mjs?v=25';
+import { FtmsMachine } from './ble/ftms-device.js?v=27';
+import { pickAndConnect } from './ble/connect.js?v=27';
+import { SimulatedMachine } from './ble/simulator.js?v=27';
+import { inspectDevice } from './ble/inspector.js?v=27';
+import { describeError } from './errors.js?v=27';
+import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=27';
+import { WorkoutEngine } from './workout/engine.js?v=27';
+import { renderProfile } from './ui/profile-chart.js?v=27';
+import { renderSummaryChart } from './ui/summary-chart.js?v=27';
+import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty, ceilingFor } from './workout/difficulty.js?v=27';
+import { applyDuration, durationLimits } from './workout/duration.js?v=27';
+import { WorkoutRecorder } from './workout/recorder.js?v=27';
+import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=27';
+import { loadHistory, saveWorkout, clearHistory } from './workout/history.js?v=27';
+import { saveSession, loadSession, clearSession } from './workout/session.js?v=27';
+import { Voice, voiceQuality } from './ui/voice.js?v=27';
+import { CoachAudio } from './ui/coach-audio.js?v=27';
+import { CoachTalk } from './workout/talk.js?v=27';
+import { segClipId } from '../tools/voice-script.mjs?v=27';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => {
@@ -284,6 +284,71 @@ function renderHistory() {
 
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${m ?? 0} m`);
 
+// ---------- Settings page ----------
+const CHATTY = {
+  quiet: { label: 'Quiet', gap: [1e9, 1e9] },      // announcements, pace and boosts only
+  normal: { label: 'Normal', gap: [120, 180] },
+  chatty: { label: 'Chatty', gap: [60, 90] },
+};
+const chattyGap = () => (CHATTY[prefs.get('chatty', 'chatty')] ?? CHATTY.chatty).gap;
+function renderChatty() {
+  const box = $('opt-chatty');
+  box.replaceChildren();
+  for (const [k, v] of Object.entries(CHATTY)) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = v.label;
+    b.className = k === prefs.get('chatty', 'chatty') ? 'on' : '';
+    b.onclick = () => {
+      prefs.set('chatty', k);
+      if (workout?.talk) { workout.talk.chattiness = v.gap; workout.talk.nextMotivationAt = workout.talk._gap(engine?.elapsed ?? 0); }
+      renderChatty();
+    };
+    box.append(b);
+  }
+}
+renderChatty();
+$('opt-pace').checked = prefs.get('pace', true);
+$('opt-pace').onchange = (e) => prefs.set('pace', e.target.checked);
+
+const SECTIONS = ['connect', 'picker', 'workout', 'summary'];
+let returnTo = 'connect';
+function openSettings() {
+  if (!$('settings').hidden) return closeSettings();
+  returnTo = SECTIONS.find((id) => !$(id).hidden) ?? 'connect';
+  SECTIONS.forEach((id) => { $(id).hidden = true; });
+  $('settings').hidden = false;
+  renderSettings();
+  window.scrollTo(0, 0);
+}
+function renderSettings() {
+  const r = machine?.range;
+  $('set-machine').textContent = !machine ? 'Not connected.'
+    : `${machine.profile?.name ?? (machine.kind === 'sim' ? 'Simulator' : machine.name)} · resistance levels ${r.min}–${r.max} · ${machine.kind === 'sim' || machine.connected ? 'connected' : 'disconnected'}`;
+  $('set-reconnect-row').hidden = !(machine?.reconnect && !machine.connected);
+  const n = loadHistory().length;
+  $('set-history').textContent = n ? `${n} workout${n === 1 ? '' : 's'} saved on this device.` : 'No workouts saved yet.';
+  $('set-clear-history').disabled = !n;
+}
+function closeSettings() {
+  $('settings').hidden = true;
+  $(returnTo).hidden = false;
+  if (returnTo === 'picker') renderPicker();
+  window.scrollTo(0, 0);
+}
+$('btn-settings').onclick = openSettings;
+$('set-back').onclick = closeSettings;
+$('set-reconnect').onclick = async () => {
+  $('set-machine').textContent = 'Reconnecting…';
+  await tryReconnect();
+  renderSettings();
+};
+$('set-clear-history').onclick = () => {
+  if (!confirm('Delete all saved workouts on this device?')) return;
+  clearHistory();
+  renderSettings();
+};
+
 // ---------- Voice ----------
 // Coach = recorded ElevenLabs clips ("Jessica"); the browser voice is only a
 // fallback or an explicit choice in Voice settings.
@@ -367,7 +432,7 @@ function openWorkout(base, difficulty = diffFor(base.id), restore = null) {
     coach,
     watcher: new MovementWatcher(),
     autoPaused: false,
-    talk: new CoachTalk(),
+    talk: new CoachTalk({ chattiness: chattyGap() }),
     halfwaySaid: -1,
     nextSaid: -1,
   };
@@ -554,7 +619,7 @@ function sampleSecond() {
     t: engine.elapsed, total: engine.total, index: idx, seg,
     segElapsed, segRemaining: seg.duration - segElapsed,
     isLast: idx === w.circuit.segments.length - 1,
-    feedback: fb, moving: moving && !coachAudio.speaking,
+    feedback: $('opt-pace').checked ? fb : null, moving: moving && !coachAudio.speaking,
   });
   if (lines) speak(lines, { priority: lines[0] === 'ten-seconds' || lines[0] === 'one-minute' ? 2 : 1 });
 

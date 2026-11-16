@@ -203,3 +203,26 @@ input[type=range] { accent-color: var(--accent); }
 .voice-settings select { max-width: 100%; flex: 1; min-width: 0; }
 .tip { margin-top: 12px; }
 #w-profile { cursor: pointer; }
+
+/* Top bar settings button */
+.top-right { display: flex; align-items: center; gap: 10px; }
+.icon-btn { font: inherit; font-size: 20px; line-height: 1; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; width: 40px; height: 40px; cursor: pointer; }
+.icon-btn:hover { border-color: var(--muted); }
+
+/* Settings page */
+.set-group { margin-bottom: 16px; }
+.set-group h3 { margin: 0 0 8px; font-size: 16px; }
+.set-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.set-group h3 + .set-row { border-top: 0; }
+.set-row > span { flex: 1; }
+.set-row small { font-size: 12px; }
+.set-row input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); }
+.set-ctl { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.set-ctl select { max-width: 52vw; }
+.set-row .seg-ctl { margin: 0; }
+.diag summary { cursor: pointer; font-weight: 600; }
+.diag h3 { margin-top: 18px; }
+.diag .calib { margin: 12px 0; background: var(--panel-2); }
+.diag .log { margin-top: 12px; }
+.diag hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
+#set-machine { margin-bottom: 0; }

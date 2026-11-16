@@ -18,3 +18,7 @@ export function deleteWorkout(date) {
   try { localStorage.setItem(KEY, JSON.stringify(list)); } catch { /* ignore */ }
   return list;
 }
+
+export function clearHistory() {
+  try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+}

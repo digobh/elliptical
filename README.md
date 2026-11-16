@@ -19,6 +19,9 @@ A web app that plays circuit workouts on a ProForm elliptical. It connects over 
   pauses, reconnects automatically (no device picker) and carries on, and after a reload or closed tab the
   circuits screen offers **Resume** from where you stopped
 - **Tap the circuit chart** to jump to any point; elapsed / remaining time always at the top
+- **⚙ Settings page**: coach (spoken cues, voice, how chatty – Quiet/Normal/Chatty, pace feedback,
+  auto-pause), machine info and reconnect, clear history, and *Diagnostics* (resistance test,
+  Bluetooth inspector, command format, raw log, voice list, connection log)
 - **Coach voice "Jessica"** (ElevenLabs, pre-recorded – iOS web apps only get robotic system voices):
   segment announcements, "coming up", pace feedback (falling behind / too fast / back on track),
   motivation every 60–90 s, hard-effort boosts, milestones. Phrases rotate like a shuffled deck.

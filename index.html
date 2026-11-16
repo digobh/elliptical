@@ -5,12 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0e1116">
   <title>Elliptical Circuits</title>
-  <link rel="stylesheet" href="styles.css?v=25">
+  <link rel="stylesheet" href="styles.css?v=27">
 </head>
 <body>
   <header class="topbar">
     <h1>Elliptical Circuits</h1>
-    <span id="status" class="pill pill-off">Not connected</span>
+    <div class="top-right">
+      <span id="status" class="pill pill-off">Not connected</span>
+      <button id="btn-settings" class="icon-btn" aria-label="Settings" title="Settings">⚙</button>
+    </div>
   </header>
 
   <main>
@@ -23,32 +26,8 @@
         <button id="btn-ble" class="btn primary">Connect via Bluetooth</button>
         <button id="btn-sim" class="btn">Use simulator</button>
       </div>
-      <details class="advanced">
-        <summary>Advanced</summary>
-        <label>Resistance command format
-          <select id="encoding">
-            <option value="auto">Auto (spec default)</option>
-            <option value="u8">uint8 (FTMS 1.0)</option>
-            <option value="s16">sint16</option>
-          </select>
-        </label>
-        <p class="muted small">Change this only if the machine connects but ignores resistance changes.</p>
-        <label><input type="checkbox" id="raw-log"> Log raw Bluetooth data (for troubleshooting)</label>
-        <hr>
-        <p class="muted small">Machine not in the list? Inspect any Bluetooth device to see which protocol it speaks.</p>
-        <div class="row">
-          <select id="inspect-mode" aria-label="Search mode">
-            <option value="ifit">Search: iFit / fitness names</option>
-            <option value="standard">Search: any device</option>
-            <option value="compat">Search: any device (full UUIDs)</option>
-            <option value="minimal">Search: any device (name only)</option>
-          </select>
-          <button id="btn-inspect" class="btn">Inspect Bluetooth device</button>
-          <button id="btn-copy-report" class="btn" hidden>Copy report</button>
-        </div>
-        <pre id="inspect-out" class="report" hidden></pre>
-      </details>
       <p id="ble-warning" class="warn" hidden></p>
+      <p class="muted small">Trouble connecting? See ⚙ Settings → Diagnostics.</p>
     </section>
 
     <!-- 2. Pick a circuit -->
@@ -62,37 +41,6 @@
           <button id="resume-go" class="btn primary">Resume</button>
           <button id="resume-discard" class="btn ghost">Discard</button>
         </div>
-      </div>
-      <div id="calib" class="card calib" hidden>
-        <h2>Resistance test</h2>
-        <ol class="muted small steps">
-          <li>Pedal slowly and steadily.</li>
-          <li>Tap <strong>Send</strong>.</li>
-          <li>As soon as the number on the <strong>console</strong> changes, tap that number below (or <em>No change</em>).</li>
-          <li>Optionally tap how it felt. With <em>Auto-send next</em> on, the next level goes out by itself.</li>
-        </ol>
-        <div class="level-wrap">
-          <button id="cal-minus" class="btn round" aria-label="Lower test level">−</button>
-          <div class="cal-sent"><div class="muted small">App sends</div><div id="cal-level" class="level">1</div></div>
-          <button id="cal-plus" class="btn round" aria-label="Raise test level">+</button>
-          <button id="cal-send" class="btn primary">Send</button>
-        </div>
-        <label class="small"><input type="checkbox" id="cal-auto" checked> Auto-send next level after I tap the console number</label>
-        <p id="cal-status" class="small cal-status">Tap Send to start.</p>
-        <div class="muted small">Console shows:</div>
-        <div id="cal-console" class="numpad"></div>
-        <div class="muted small">It felt:</div>
-        <div class="feel">
-          <button class="btn" data-feel="easier">Easier</button>
-          <button class="btn" data-feel="same">Same</button>
-          <button class="btn" data-feel="harder">Harder</button>
-        </div>
-        <p class="small">Bluetooth says console level: <strong id="cal-machine">–</strong></p>
-        <div class="row">
-          <button id="cal-copy" class="btn">Copy results</button>
-          <button id="cal-clear" class="btn ghost">Clear</button>
-        </div>
-        <pre id="cal-history" class="report"></pre>
       </div>
       <h2>Choose a circuit</h2>
       <p id="range-note" class="muted small range-note"></p>
@@ -167,25 +115,6 @@
         <button id="btn-skip" class="btn">Skip segment</button>
         <button id="btn-stop" class="btn danger">End</button>
       </div>
-      <div class="settings">
-        <label><input type="checkbox" id="opt-voice" checked> Spoken cues</label>
-        <label><input type="checkbox" id="opt-autopause" checked> Auto-pause when I stop</label>
-      </div>
-      <details class="voice-settings">
-        <summary>Voice</summary>
-        <div class="row">
-          <select id="opt-voice-pick" aria-label="Coach voice"></select>
-          <button id="voice-test" class="btn">Test voice</button>
-        </div>
-        <button id="voice-all" class="btn small-btn">Show every voice this browser offers</button>
-        <pre id="voice-all-out" class="report" hidden></pre>
-        <p id="voice-hint" class="muted small">
-          For a natural, human-sounding voice: on your iPhone go to <strong>Settings → Accessibility →
-          Spoken Content → Voices → English</strong>, pick a voice such as <strong>Ava</strong> or <strong>Zoe</strong> and download the
-          <strong>Premium</strong> (or Enhanced) version. Then reopen this app – it will use it automatically.
-          (Siri's own voice isn't available to web apps.)
-        </p>
-      </details>
       <p class="muted small tip">🎵 Tip: change songs from Control Center or the lock screen instead of switching to Spotify –
         leaving the app can drop the Bluetooth connection. If it does drop, your workout is saved and resumes here.</p>
 
@@ -194,6 +123,115 @@
           <input id="sim-cadence" type="range" min="0" max="180" step="1" value="0">
         </label>
       </div>
+    </section>
+
+    <!-- 5. Settings -->
+    <section id="settings" hidden>
+      <div class="workout-head">
+        <button id="set-back" class="btn ghost">← Back</button>
+        <h2>Settings</h2>
+      </div>
+
+      <div class="card set-group">
+        <h3>Coach</h3>
+        <label class="set-row"><span>Spoken cues</span><input type="checkbox" id="opt-voice" checked></label>
+        <div class="set-row">
+          <span>Voice</span>
+          <div class="set-ctl"><select id="opt-voice-pick" aria-label="Coach voice"></select>
+            <button id="voice-test" class="btn">Test</button></div>
+        </div>
+        <div class="set-row">
+          <span>How chatty<br><small class="muted">motivation lines</small></span>
+          <div id="opt-chatty" class="seg-ctl" role="radiogroup" aria-label="How chatty"></div>
+        </div>
+        <label class="set-row"><span>Pace feedback<br><small class="muted">"pick up the pace", "back on track"</small></span><input type="checkbox" id="opt-pace" checked></label>
+        <label class="set-row"><span>Auto-pause when I stop</span><input type="checkbox" id="opt-autopause" checked></label>
+      </div>
+
+      <div class="card set-group">
+        <h3>Machine</h3>
+        <p id="set-machine" class="muted">Not connected.</p>
+        <div class="row" id="set-reconnect-row"><button id="set-reconnect" class="btn">Reconnect</button></div>
+      </div>
+
+      <div class="card set-group">
+        <h3>Workout history</h3>
+        <p id="set-history" class="muted small"></p>
+        <button id="set-clear-history" class="btn danger">Clear workout history</button>
+      </div>
+
+      <details class="card set-group diag">
+        <summary>Diagnostics &amp; troubleshooting</summary>
+        <p class="muted small">Tools used to get the machine working. You shouldn't need them day to day.</p>
+      <div id="calib" class="card calib" hidden>
+        <h2>Resistance test</h2>
+        <ol class="muted small steps">
+          <li>Pedal slowly and steadily.</li>
+          <li>Tap <strong>Send</strong>.</li>
+          <li>As soon as the number on the <strong>console</strong> changes, tap that number below (or <em>No change</em>).</li>
+          <li>Optionally tap how it felt. With <em>Auto-send next</em> on, the next level goes out by itself.</li>
+        </ol>
+        <div class="level-wrap">
+          <button id="cal-minus" class="btn round" aria-label="Lower test level">−</button>
+          <div class="cal-sent"><div class="muted small">App sends</div><div id="cal-level" class="level">1</div></div>
+          <button id="cal-plus" class="btn round" aria-label="Raise test level">+</button>
+          <button id="cal-send" class="btn primary">Send</button>
+        </div>
+        <label class="small"><input type="checkbox" id="cal-auto" checked> Auto-send next level after I tap the console number</label>
+        <p id="cal-status" class="small cal-status">Tap Send to start.</p>
+        <div class="muted small">Console shows:</div>
+        <div id="cal-console" class="numpad"></div>
+        <div class="muted small">It felt:</div>
+        <div class="feel">
+          <button class="btn" data-feel="easier">Easier</button>
+          <button class="btn" data-feel="same">Same</button>
+          <button class="btn" data-feel="harder">Harder</button>
+        </div>
+        <p class="small">Bluetooth says console level: <strong id="cal-machine">–</strong></p>
+        <div class="row">
+          <button id="cal-copy" class="btn">Copy results</button>
+          <button id="cal-clear" class="btn ghost">Clear</button>
+        </div>
+        <pre id="cal-history" class="report"></pre>
+      </div>
+        <h3>Bluetooth</h3>
+        <label>Resistance command format
+          <select id="encoding">
+            <option value="auto">Auto (spec default)</option>
+            <option value="u8">uint8 (FTMS 1.0)</option>
+            <option value="s16">sint16</option>
+          </select>
+        </label>
+        <p class="muted small">Change this only if the machine connects but ignores resistance changes.</p>
+        <label><input type="checkbox" id="raw-log"> Log raw Bluetooth data (for troubleshooting)</label>
+        <hr>
+        <p class="muted small">Machine not in the list? Inspect any Bluetooth device to see which protocol it speaks.</p>
+        <div class="row">
+          <select id="inspect-mode" aria-label="Search mode">
+            <option value="ifit">Search: iFit / fitness names</option>
+            <option value="standard">Search: any device</option>
+            <option value="compat">Search: any device (full UUIDs)</option>
+            <option value="minimal">Search: any device (name only)</option>
+          </select>
+          <button id="btn-inspect" class="btn">Inspect Bluetooth device</button>
+          <button id="btn-copy-report" class="btn" hidden>Copy report</button>
+        </div>
+        <pre id="inspect-out" class="report" hidden></pre>
+        <h3>Voices</h3>
+        <button id="voice-all" class="btn small-btn">Show every voice this browser offers</button>
+        <pre id="voice-all-out" class="report" hidden></pre>
+        <p id="voice-hint" class="muted small">
+          For a natural, human-sounding voice: on your iPhone go to <strong>Settings → Accessibility →
+          Spoken Content → Voices → English</strong>, pick a voice such as <strong>Ava</strong> or <strong>Zoe</strong> and download the
+          <strong>Premium</strong> (or Enhanced) version. Then reopen this app – it will use it automatically.
+          (Siri's own voice isn't available to web apps.)
+        </p>
+        <details id="log-wrap" class="log">
+      <summary>Connection log</summary>
+      <button id="btn-copy-log" class="btn small-btn">Copy log</button>
+      <pre id="log"></pre>
+    </details>
+      </details>
     </section>
 
     <!-- 4. Summary -->
@@ -218,14 +256,9 @@
       </div>
     </section>
 
-    <details id="log-wrap" class="card log">
-      <summary>Connection log</summary>
-      <button id="btn-copy-log" class="btn small-btn">Copy log</button>
-      <pre id="log"></pre>
-    </details>
   </main>
 
-  <footer class="muted small app-version">v25</footer>
-  <script type="module" src="src/main.js?v=25"></script>
+  <footer class="muted small app-version">v27</footer>
+  <script type="module" src="src/main.js?v=27"></script>
 </body>
 </html>
