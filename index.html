@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0e1116">
   <title>Elliptical Circuits</title>
-  <link rel="stylesheet" href="styles.css?v=18">
+  <link rel="stylesheet" href="styles.css?v=19">
 </head>
 <body>
   <header class="topbar">
@@ -127,6 +127,12 @@
             <button id="btn-plus" class="btn round" aria-label="Raise resistance">+</button>
           </div>
           <div id="w-sync" class="sync muted small">Machine: <span id="w-mlevel">–</span></div>
+          <div class="ceiling">
+            <span class="muted small">Max level</span>
+            <button id="ceil-minus" class="btn t-btn" aria-label="Lower max level">−</button>
+            <strong id="w-ceiling">–</strong>
+            <button id="ceil-plus" class="btn t-btn" aria-label="Raise max level">+</button>
+          </div>
         </div>
       </div>
 
@@ -186,7 +192,7 @@
     </details>
   </main>
 
-  <footer class="muted small app-version">v18</footer>
-  <script type="module" src="src/main.js?v=18"></script>
+  <footer class="muted small app-version">v19</footer>
+  <script type="module" src="src/main.js?v=19"></script>
 </body>
 </html>

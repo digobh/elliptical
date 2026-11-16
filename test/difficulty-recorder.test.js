@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyDifficulty, DIFFICULTY_KEYS } from '../src/workout/difficulty.js';
+import { applyDifficulty, DIFFICULTY_KEYS, ceilingFor } from '../src/workout/difficulty.js';
 import { WorkoutRecorder } from '../src/workout/recorder.js';
-import { CIRCUITS, totalDuration } from '../src/workout/circuits.js';
+import { CIRCUITS, totalDuration, pctToLevel } from '../src/workout/circuits.js';
 
 const hiit = CIRCUITS.find((c) => c.id === 'hiit-30-30');
 
@@ -12,16 +12,32 @@ test('intermediate is the circuit unchanged', () => {
   assert.equal(c.difficulty, 'intermediate');
 });
 
-test('beginner is easier and shorter, advanced harder and longer', () => {
+test('beginner has shorter work intervals, advanced longer; shapes unchanged', () => {
   const b = applyDifficulty(hiit, 'beginner');
   const a = applyDifficulty(hiit, 'advanced');
   const sprint = (c) => c.segments.find((s) => s.label === 'Sprint');
-  assert.ok(sprint(b).pct < sprint(hiit).pct && sprint(hiit).pct < sprint(a).pct);
+  assert.equal(sprint(b).pct, sprint(hiit).pct);          // the ceiling sets how hard, not the %
   assert.ok(sprint(b).duration < 30 && sprint(a).duration > 30);
-  assert.ok(totalDuration(b) < totalDuration(hiit));
-  assert.ok(totalDuration(a) > totalDuration(hiit));
-  // warm-up length is unchanged
+  assert.ok(totalDuration(b) < totalDuration(hiit) && totalDuration(a) > totalDuration(hiit));
   assert.equal(b.segments[0].duration, hiit.segments[0].duration);
+});
+
+test('level ceilings: 6 / 10 / 14 on a 16-level machine, scaled on others', () => {
+  const r16 = { min: 1, max: 16, step: 1 };
+  assert.deepEqual(DIFFICULTY_KEYS.map((k) => ceilingFor(k, r16)), [6, 10, 14]);
+  assert.deepEqual(DIFFICULTY_KEYS.map((k) => ceilingFor(k, { min: 1, max: 24, step: 1 })), [9, 15, 21]);
+});
+
+test('no circuit exceeds its difficulty ceiling on the 420E', () => {
+  const r16 = { min: 1, max: 16, step: 1 };
+  for (const c of CIRCUITS) {
+    for (const k of DIFFICULTY_KEYS) {
+      const cap = ceilingFor(k, r16);
+      for (const s of applyDifficulty(c, k).segments) {
+        assert.ok(pctToLevel(s.pct, { ...r16, max: cap }) <= cap, `${c.id}/${k}`);
+      }
+    }
+  }
 });
 
 test('every circuit × difficulty stays valid', () => {

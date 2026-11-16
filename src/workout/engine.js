@@ -7,7 +7,7 @@
 //   'segment'  { index, segment, level }
 //   'tick'     { elapsed, total, index, segmentElapsed, segmentRemaining, level }
 
-import { totalDuration, pctToLevel } from './circuits.js?v=18';
+import { totalDuration, pctToLevel } from './circuits.js?v=19';
 
 export class WorkoutEngine extends EventTarget {
   constructor(machine, { now = () => performance.now() } = {}) {
@@ -17,6 +17,7 @@ export class WorkoutEngine extends EventTarget {
     this.circuit = null;
     this.state = 'idle';
     this.scale = 1;   // global difficulty multiplier
+    this.ceiling = null; // highest level the circuit is scaled to (null = machine max)
     this.offset = 0;  // manual +/- levels for the current segment
     this.index = -1;
     this._elapsedBefore = 0; // seconds accumulated before the last resume
@@ -41,7 +42,8 @@ export class WorkoutEngine extends EventTarget {
 
   levelFor(index) {
     const seg = this.circuit.segments[index];
-    const base = pctToLevel(seg.pct, this.machine.range, this.scale);
+    const r = this.machine.range;
+    const base = pctToLevel(seg.pct, { ...r, max: this.ceiling ?? r.max }, this.scale);
     const step = this.machine.range.step || 1;
     const lvl = base + this.offset * step;
     return Math.min(this.machine.range.max, Math.max(this.machine.range.min, Math.round(lvl * 10) / 10));
@@ -82,6 +84,14 @@ export class WorkoutEngine extends EventTarget {
     if (this.index < 0) return;
     this.offset += delta;
     this._apply();
+  }
+
+  /** Change the level ceiling (e.g. mid-workout); re-applies the current segment. */
+  setCeiling(level) {
+    const r = this.machine.range;
+    this.ceiling = level == null ? null : Math.max(r.min + 1, Math.min(r.max, level));
+    if (this.index >= 0) this._apply();
+    return this.ceiling;
   }
 
   setScale(scale) {

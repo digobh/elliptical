@@ -5,7 +5,10 @@ A web app that plays circuit workouts on a ProForm elliptical. It connects over 
 
 - 6 built-in circuits: Quick Sync Test, Rolling Hills, HIIT 30/30, Pyramid, Tabata, Endurance Climb
 - Live metrics: strides/min (with target), watts, speed, heart rate, distance, kcal
-- **Beginner / Intermediate / Advanced** for every circuit (intensity and interval length; remembered per circuit)
+- **Beginner / Intermediate / Advanced** for every circuit: level caps of **6 / 10 / 14** (on a 16-level
+  machine; scaled on others) with the circuit's shape scaled into that range, plus interval length;
+  remembered per circuit
+- **Max level** control during the workout: lower or raise the cap live if a session is too heavy or too easy
 - **Adjustable time** (Rolling Hills, Pyramid, Endurance Climb): each shows its suggested time; −/+ changes it in 1-minute steps (40 %–300 %),
   scaling every segment proportionally; Reset returns to the suggestion. Tabata, HIIT 30/30 and the Quick
   Sync Test are fixed protocols and keep their set time

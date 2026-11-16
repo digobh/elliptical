@@ -186,3 +186,7 @@ input[type=range] { accent-color: var(--accent); }
 .time-ctl .t-reset { padding: 6px 8px; min-height: 32px; font-size: 13px; color: var(--accent); }
 .w-options { display: flex; gap: 12px 18px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
 .w-options .seg-ctl { margin-bottom: 0; }
+
+.ceiling { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.ceiling .t-btn { width: 40px; min-height: 40px; padding: 0; font-size: 22px; line-height: 1; border-radius: 10px; }
+.ceiling strong { font-size: 22px; min-width: 2ch; text-align: center; font-variant-numeric: tabular-nums; }

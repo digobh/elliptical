@@ -76,3 +76,18 @@ test('every built-in circuit is valid', () => {
     }
   }
 });
+
+test('ceiling scales levels and can change mid-workout', () => {
+  let t = 0;
+  const m = { range: { min: 1, max: 16, step: 1 }, sent: [], setResistance(l) { this.sent.push(l); return Promise.resolve({ ok: true }); } };
+  const e = new WorkoutEngine(m, { now: () => t });
+  e.load({ id: 'x', name: 'x', segments: [{ label: 'A', duration: 10, pct: 50 }, { label: 'B', duration: 10, pct: 100 }] });
+  e.setCeiling(10);
+  e.start();
+  assert.deepEqual(m.sent, [6]);           // 1 + 9 × 50 % = 5.5 → 6
+  e.setCeiling(8);                          // too heavy: lower the max
+  assert.deepEqual(m.sent, [6, 5]);         // re-applied immediately (1 + 7 × 50 % = 4.5 → 5)
+  t += 11000; e.update();
+  assert.deepEqual(m.sent, [6, 5, 8]);      // 100 % = the new ceiling
+  assert.equal(e.setCeiling(99), 16);       // clamped to the machine
+});

@@ -1,17 +1,17 @@
-import { FtmsMachine } from './ble/ftms-device.js?v=18';
-import { pickAndConnect } from './ble/connect.js?v=18';
-import { SimulatedMachine } from './ble/simulator.js?v=18';
-import { inspectDevice } from './ble/inspector.js?v=18';
-import { describeError } from './errors.js?v=18';
-import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=18';
-import { WorkoutEngine } from './workout/engine.js?v=18';
-import { renderProfile } from './ui/profile-chart.js?v=18';
-import { renderSummaryChart } from './ui/summary-chart.js?v=18';
-import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty } from './workout/difficulty.js?v=18';
-import { applyDuration, durationLimits } from './workout/duration.js?v=18';
-import { WorkoutRecorder } from './workout/recorder.js?v=18';
-import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=18';
-import { loadHistory, saveWorkout } from './workout/history.js?v=18';
+import { FtmsMachine } from './ble/ftms-device.js?v=19';
+import { pickAndConnect } from './ble/connect.js?v=19';
+import { SimulatedMachine } from './ble/simulator.js?v=19';
+import { inspectDevice } from './ble/inspector.js?v=19';
+import { describeError } from './errors.js?v=19';
+import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=19';
+import { WorkoutEngine } from './workout/engine.js?v=19';
+import { renderProfile } from './ui/profile-chart.js?v=19';
+import { renderSummaryChart } from './ui/summary-chart.js?v=19';
+import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty, ceilingFor } from './workout/difficulty.js?v=19';
+import { applyDuration, durationLimits } from './workout/duration.js?v=19';
+import { WorkoutRecorder } from './workout/recorder.js?v=19';
+import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=19';
+import { loadHistory, saveWorkout } from './workout/history.js?v=19';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => {
@@ -225,9 +225,10 @@ function renderPicker() {
     const draw = () => {
       const k = diffFor(base.id);
       const c = buildCircuit(base, k);
-      const levels = c.segments.map((s) => pctToLevel(s.pct, machine.range));
+      const cap = ceilingFor(k, machine.range);
+      const levels = c.segments.map((s) => pctToLevel(s.pct, { ...machine.range, max: cap }));
       renderProfile(card.querySelector('svg'), c, { height: 50 });
-      card.querySelector('.meta').textContent = `levels ${Math.min(...levels)}–${Math.max(...levels)}`;
+      card.querySelector('.meta').textContent = `levels ${Math.min(...levels)}–${Math.max(...levels)} · max ${cap}`;
       timeControl(card.querySelector('.time-ctl'), base, k, draw);
       diffControl(card.querySelector('.seg-ctl'), k, (nk) => { setDiff(base.id, nk); draw(); }, { small: true });
     };
@@ -281,6 +282,7 @@ function openWorkout(base, difficulty = diffFor(base.id)) {
   const circuit = buildCircuit(base, difficulty);
   engine = new WorkoutEngine(machine);
   engine.load(circuit);
+  engine.setCeiling(ceilingFor(difficulty, machine.range));
   chart = renderProfile($('w-profile'), circuit, { height: 100 });
   workout = {
     base, circuit, difficulty,
@@ -298,6 +300,7 @@ function openWorkout(base, difficulty = diffFor(base.id)) {
   $('w-countdown').textContent = fmt(circuit.segments[0].duration);
   $('w-next').textContent = `${circuit.segments[0].label} (lvl ${engine.levelFor(0)})`;
   $('w-level').textContent = engine.levelFor(0);
+  showCeiling();
   $('w-coach').textContent = '';
   $('w-coach').className = 'coach';
   $('w-nextup').hidden = true;
@@ -451,6 +454,7 @@ function finishWorkout() {
     return;
   }
   summary.series = w.recorder.series();
+  summary.ceiling = engine.ceiling;
   summary.maxMachineLevel = machine.range.max;
   saveWorkout(summary);
   beep(660, 0.4);
@@ -470,6 +474,7 @@ function showSummary(s, base) {
     ['Avg speed', s.avgSpeedKmh != null ? `${s.avgSpeedKmh} km/h` : '–'],
     ['On pace', s.cadenceZonePct != null ? `${s.cadenceZonePct}%` : '–'],
   ];
+  if (s.ceiling) stats.push(['Max level setting', s.ceiling]);
   if (s.avgHeartRate) stats.push(['Avg heart rate', s.avgHeartRate]);
   $('s-stats').replaceChildren(...stats.map(([k, v]) => {
     const d = document.createElement('div');
@@ -513,6 +518,30 @@ $('btn-stop').onclick = () => {
   if (engine?.state === 'running' && !confirm('End this workout?')) return;
   engine?.stop();
 };
+// "Max level": change the ceiling during the workout when it is too heavy / too easy.
+function showCeiling() {
+  if (!engine) return;
+  const r = machine.range;
+  $('w-ceiling').textContent = engine.ceiling ?? r.max;
+  $('ceil-minus').disabled = (engine.ceiling ?? r.max) <= r.min + 1;
+  $('ceil-plus').disabled = (engine.ceiling ?? r.max) >= r.max;
+}
+function changeCeiling(delta) {
+  if (!engine) return;
+  const before = engine.ceiling ?? machine.range.max;
+  const now = engine.setCeiling(before + delta);
+  if (now === before) return;
+  showCeiling();
+  const idx = Math.max(0, engine.index);
+  $('w-level').textContent = engine.levelFor(idx);
+  const next = workout.circuit.segments[idx + 1];
+  if (next) $('w-next').textContent = `${next.label} (lvl ${engine.levelFor(idx + 1)})`;
+  if (engine.state === 'running') say(`Max level ${now}. Now level ${engine.levelFor(idx)}.`);
+  log(`Max level ${before} → ${now}`);
+}
+$('ceil-minus').onclick = () => changeCeiling(-1);
+$('ceil-plus').onclick = () => changeCeiling(+1);
+
 $('btn-plus').onclick = () => { engine?.nudge(+1); $('w-level').textContent = engine.levelFor(Math.max(0, engine.index)); };
 $('btn-minus').onclick = () => { engine?.nudge(-1); $('w-level').textContent = engine.levelFor(Math.max(0, engine.index)); };
 $('btn-back').onclick = () => {

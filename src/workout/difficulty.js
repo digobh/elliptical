@@ -1,17 +1,25 @@
 // Beginner / Intermediate / Advanced versions of any circuit.
 //
-// Intermediate is the circuit as written. The other levels change:
-//   - intensity: work segments get the full factor; warm-up, recovery and
-//     cool-down only half of it, so easy parts stay easy;
-//   - duration: work intervals get shorter (beginner) or longer (advanced, which
-//     also shortens recoveries);
-//   - cadence: targets move a little with the level.
+// Each level has a resistance CEILING (on a 16-level machine like the ProForm
+// Endurance 420E: Beginner 6, Intermediate 10, Advanced 14). The circuit's effort
+// percentages are scaled into 1…ceiling, so its shape is kept and 100 % effort
+// = the ceiling. The ceiling can be changed during a workout.
+// Levels also change interval length (beginner shorter work, advanced longer
+// work and shorter recoveries) and nudge cadence targets.
 
 export const DIFFICULTIES = {
-  beginner: { label: 'Beginner', intensity: 0.7, work: 0.75, recover: 1, cadence: 0.95 },
-  intermediate: { label: 'Intermediate', intensity: 1, work: 1, recover: 1, cadence: 1 },
-  advanced: { label: 'Advanced', intensity: 1.2, work: 1.25, recover: 0.85, cadence: 1.05 },
+  beginner: { label: 'Beginner', ceiling16: 6, intensity: 1, work: 0.75, recover: 1, cadence: 0.95 },
+  intermediate: { label: 'Intermediate', ceiling16: 10, intensity: 1, work: 1, recover: 1, cadence: 1 },
+  advanced: { label: 'Advanced', ceiling16: 14, intensity: 1, work: 1.25, recover: 0.85, cadence: 1.05 },
 };
+
+/** Ceiling for a difficulty on the connected machine (scaled from the 16-level values). */
+export function ceilingFor(key, range) {
+  const c16 = (DIFFICULTIES[key] ?? DIFFICULTIES.intermediate).ceiling16;
+  if (range.max === 16 && range.min === 1) return c16;
+  const lvl = range.min + ((range.max - range.min) * (c16 - 1)) / 15;
+  return Math.max(range.min + 1, Math.min(range.max, Math.round(lvl)));
+}
 
 export const DIFFICULTY_KEYS = Object.keys(DIFFICULTIES);
 
