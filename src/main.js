@@ -1,19 +1,19 @@
-import { FtmsMachine } from './ble/ftms-device.js?v=22';
-import { pickAndConnect } from './ble/connect.js?v=22';
-import { SimulatedMachine } from './ble/simulator.js?v=22';
-import { inspectDevice } from './ble/inspector.js?v=22';
-import { describeError } from './errors.js?v=22';
-import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=22';
-import { WorkoutEngine } from './workout/engine.js?v=22';
-import { renderProfile } from './ui/profile-chart.js?v=22';
-import { renderSummaryChart } from './ui/summary-chart.js?v=22';
-import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty, ceilingFor } from './workout/difficulty.js?v=22';
-import { applyDuration, durationLimits } from './workout/duration.js?v=22';
-import { WorkoutRecorder } from './workout/recorder.js?v=22';
-import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=22';
-import { loadHistory, saveWorkout } from './workout/history.js?v=22';
-import { saveSession, loadSession, clearSession } from './workout/session.js?v=22';
-import { Voice, phrases, voiceQuality } from './ui/voice.js?v=22';
+import { FtmsMachine } from './ble/ftms-device.js?v=23';
+import { pickAndConnect } from './ble/connect.js?v=23';
+import { SimulatedMachine } from './ble/simulator.js?v=23';
+import { inspectDevice } from './ble/inspector.js?v=23';
+import { describeError } from './errors.js?v=23';
+import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=23';
+import { WorkoutEngine } from './workout/engine.js?v=23';
+import { renderProfile } from './ui/profile-chart.js?v=23';
+import { renderSummaryChart } from './ui/summary-chart.js?v=23';
+import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty, ceilingFor } from './workout/difficulty.js?v=23';
+import { applyDuration, durationLimits } from './workout/duration.js?v=23';
+import { WorkoutRecorder } from './workout/recorder.js?v=23';
+import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=23';
+import { loadHistory, saveWorkout } from './workout/history.js?v=23';
+import { saveSession, loadSession, clearSession } from './workout/session.js?v=23';
+import { Voice, phrases, voiceQuality } from './ui/voice.js?v=23';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => {
@@ -304,6 +304,17 @@ function renderVoices(list = voice.list()) {
 voice.onvoices = (list) => renderVoices(list);
 renderVoices();
 $('opt-voice-pick').onchange = (e) => { prefs.set('voiceURI', e.target.value || null); voice.use(e.target.value); };
+// Diagnostics: list exactly what speechSynthesis exposes on this device.
+$('voice-all').onclick = async () => {
+  const out = $('voice-all-out');
+  out.hidden = false;
+  if (!voice.supported) { out.textContent = 'speechSynthesis is not available in this browser.'; return; }
+  let all = speechSynthesis.getVoices();
+  if (!all.length) { await sleep(800); all = speechSynthesis.getVoices(); }
+  const lines = all.map((v) => `${v.name} | ${v.lang} | ${v.voiceURI}${v.localService ? '' : ' | remote'}${v.default ? ' | default' : ''}`);
+  out.textContent = `${all.length} voices (${navigator.userAgent.match(/Bluefy\/[\d.]+|Version\/[\d.]+/)?.[0] ?? ''})\n` + lines.join('\n');
+  try { await navigator.clipboard.writeText(out.textContent); $('voice-all').textContent = 'Copied to clipboard ✓'; } catch { /* ignore */ }
+};
 $('voice-test').onclick = () => { unlockAudio(); voice.say("Hi! I'll be your coach today. Sprint, level 8, for 30 seconds. Let's go!", { force: true }); };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
