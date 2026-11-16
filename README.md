@@ -19,9 +19,11 @@ A web app that plays circuit workouts on a ProForm elliptical. It connects over 
   pauses, reconnects automatically (no device picker) and carries on, and after a reload or closed tab the
   circuits screen offers **Resume** from where you stopped
 - **Tap the circuit chart** to jump to any point; elapsed / remaining time always at the top
-- **Natural voice**: picks the best installed English voice (Premium > Enhanced > standard); see
-  *Voice* in the workout settings. Download e.g. "Ava (Premium)" under iOS Settings → Accessibility →
-  Spoken Content → Voices. Siri's voice isn't available to web apps
+- **Coach voice "Jessica"** (ElevenLabs, pre-recorded – iOS web apps only get robotic system voices):
+  segment announcements, "coming up", pace feedback (falling behind / too fast / back on track),
+  motivation every 60–90 s, hard-effort boosts, milestones. Phrases rotate like a shuffled deck.
+  Edit lines in `tools/voice-script.mjs`, then `node tools/generate-voice.mjs` (needs an ElevenLabs key;
+  only missing clips are generated). The phone's voice remains a fallback/option in *Voice* settings
 - **Summary screen** with time, distance, kcal, watts, level, cadence, "on pace" %, and a chart; past
   workouts are saved on the device under *Recent workouts*
 - Manual −/+ override for the current segment; screen kept awake while riding
@@ -109,7 +111,12 @@ src/
   workout/recorder.js   per-second samples → workout summary
   workout/history.js    saved workouts (localStorage)
   workout/session.js    workout in progress, for resume after a drop or reload
-  ui/voice.js           voice ranking/picking + coach phrases
+  ui/voice.js           system voice ranking/picking (fallback)
+  ui/coach-audio.js     plays Jessica's clips, chained into sentences
+  workout/talk.js       when the coach talks: pace, motivation, boosts, milestones
+assets/voice/jessica/   89 coach clips + manifest (generated)
+tools/voice-script.mjs  everything the coach says
+tools/generate-voice.mjs  ElevenLabs generator
   ui/summary-chart.js   level / watts / cadence chart
   ui/profile-chart.js   SVG circuit profile with playhead
   main.js               UI wiring + telemetry bus for the 3D phase

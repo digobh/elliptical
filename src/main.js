@@ -1,19 +1,22 @@
-import { FtmsMachine } from './ble/ftms-device.js?v=23';
-import { pickAndConnect } from './ble/connect.js?v=23';
-import { SimulatedMachine } from './ble/simulator.js?v=23';
-import { inspectDevice } from './ble/inspector.js?v=23';
-import { describeError } from './errors.js?v=23';
-import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=23';
-import { WorkoutEngine } from './workout/engine.js?v=23';
-import { renderProfile } from './ui/profile-chart.js?v=23';
-import { renderSummaryChart } from './ui/summary-chart.js?v=23';
-import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty, ceilingFor } from './workout/difficulty.js?v=23';
-import { applyDuration, durationLimits } from './workout/duration.js?v=23';
-import { WorkoutRecorder } from './workout/recorder.js?v=23';
-import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=23';
-import { loadHistory, saveWorkout } from './workout/history.js?v=23';
-import { saveSession, loadSession, clearSession } from './workout/session.js?v=23';
-import { Voice, phrases, voiceQuality } from './ui/voice.js?v=23';
+import { FtmsMachine } from './ble/ftms-device.js?v=25';
+import { pickAndConnect } from './ble/connect.js?v=25';
+import { SimulatedMachine } from './ble/simulator.js?v=25';
+import { inspectDevice } from './ble/inspector.js?v=25';
+import { describeError } from './errors.js?v=25';
+import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=25';
+import { WorkoutEngine } from './workout/engine.js?v=25';
+import { renderProfile } from './ui/profile-chart.js?v=25';
+import { renderSummaryChart } from './ui/summary-chart.js?v=25';
+import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty, ceilingFor } from './workout/difficulty.js?v=25';
+import { applyDuration, durationLimits } from './workout/duration.js?v=25';
+import { WorkoutRecorder } from './workout/recorder.js?v=25';
+import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=25';
+import { loadHistory, saveWorkout } from './workout/history.js?v=25';
+import { saveSession, loadSession, clearSession } from './workout/session.js?v=25';
+import { Voice, voiceQuality } from './ui/voice.js?v=25';
+import { CoachAudio } from './ui/coach-audio.js?v=25';
+import { CoachTalk } from './workout/talk.js?v=25';
+import { segClipId } from '../tools/voice-script.mjs?v=25';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => {
@@ -282,28 +285,44 @@ function renderHistory() {
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${m ?? 0} m`);
 
 // ---------- Voice ----------
+// Coach = recorded ElevenLabs clips ("Jessica"); the browser voice is only a
+// fallback or an explicit choice in Voice settings.
 const voice = new Voice();
-voice.enabled = $('opt-voice').checked;
-voice.use(prefs.get('voiceURI', null));
-const say = (text) => voice.say(text);
-$('opt-voice').addEventListener('change', (e) => { voice.enabled = e.target.checked; });
+voice.enabled = true;
+const APP_VERSION = new URL(import.meta.url).searchParams.get('v') ?? '';
+const coachAudio = new CoachAudio({ version: APP_VERSION });
+window.ellipticalCoach = coachAudio; // handy for debugging
+coachAudio.load().catch((e) => log(`Coach voice not loaded: ${describeError(e)}`));
+const usingJessica = () => (prefs.get('voiceURI', 'jessica') ?? 'jessica') === 'jessica';
+if (!usingJessica()) voice.use(prefs.get('voiceURI', null));
+
+const levelClip = (l) => `level-${Math.max(1, Math.min(16, Math.round(l)))}`;
+
+/** Say a sentence made of clip ids. priority 2 = announcements, 1 = chatter. */
+function speak(ids, { priority = 1 } = {}) {
+  if (!$('opt-voice').checked) return;
+  if (usingJessica()) coachAudio.play(ids, { priority, fallback: (text) => voice.say(text) });
+  else voice.say(coachAudio.text(ids));
+  if (workout?.talk && engine) workout.talk.spoke(engine.elapsed);
+}
 
 function renderVoices(list = voice.list()) {
   const sel = $('opt-voice-pick');
   sel.replaceChildren();
-  if (!list.length) {
-    sel.append(new Option(voice.supported ? 'Default voice' : 'Speech not supported', ''));
-    return;
+  sel.append(new Option('Jessica – natural coach voice', 'jessica'));
+  if (list.length) {
+    sel.append(new Option(`Phone voice: best available (${list[0].name})`, ''));
+    for (const v of list) sel.append(new Option(`Phone voice: ${v.name} · ${voiceQuality(v)} (${v.lang})`, v.voiceURI));
   }
-  sel.append(new Option(`Best available (${voice.voice?.name ?? '–'})`, ''));
-  for (const v of list) sel.append(new Option(`${v.name} · ${voiceQuality(v)} (${v.lang})`, v.voiceURI));
-  sel.value = prefs.get('voiceURI', '') ?? '';
-  const best = list[0];
-  $('voice-hint').hidden = voiceQuality(best) !== 'Standard';
+  sel.value = prefs.get('voiceURI', 'jessica') ?? '';
+  $('voice-hint').hidden = true;
 }
 voice.onvoices = (list) => renderVoices(list);
 renderVoices();
-$('opt-voice-pick').onchange = (e) => { prefs.set('voiceURI', e.target.value || null); voice.use(e.target.value); };
+$('opt-voice-pick').onchange = (e) => {
+  prefs.set('voiceURI', e.target.value || null);
+  if (e.target.value !== 'jessica') voice.use(e.target.value);
+};
 // Diagnostics: list exactly what speechSynthesis exposes on this device.
 $('voice-all').onclick = async () => {
   const out = $('voice-all-out');
@@ -315,7 +334,13 @@ $('voice-all').onclick = async () => {
   out.textContent = `${all.length} voices (${navigator.userAgent.match(/Bluefy\/[\d.]+|Version\/[\d.]+/)?.[0] ?? ''})\n` + lines.join('\n');
   try { await navigator.clipboard.writeText(out.textContent); $('voice-all').textContent = 'Copied to clipboard ✓'; } catch { /* ignore */ }
 };
-$('voice-test').onclick = () => { unlockAudio(); voice.say("Hi! I'll be your coach today. Sprint, level 8, for 30 seconds. Let's go!", { force: true }); };
+$('voice-test').onclick = () => {
+  unlockAudio();
+  const was = $('opt-voice').checked;
+  $('opt-voice').checked = true;
+  speak(['seg-sprint', 'level-8', 'motivate-6'], { priority: 3 });
+  $('opt-voice').checked = was;
+};
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -325,6 +350,7 @@ let workout = null; // { base, circuit, difficulty, recorder, coach, watcher, au
 
 /** `restore`: a saved session (see session.js) to continue from. */
 function openWorkout(base, difficulty = diffFor(base.id), restore = null) {
+  unlockAudio(); // opened by a tap: lets the coach clips decode before Start
   clearInterval(ticker);
   clearInterval(workout?.sampler);
   const circuit = restore?.circuit ?? buildCircuit(base, difficulty);
@@ -341,6 +367,7 @@ function openWorkout(base, difficulty = diffFor(base.id), restore = null) {
     coach,
     watcher: new MovementWatcher(),
     autoPaused: false,
+    talk: new CoachTalk(),
     halfwaySaid: -1,
     nextSaid: -1,
   };
@@ -376,7 +403,15 @@ function openWorkout(base, difficulty = diffFor(base.id), restore = null) {
     lv.textContent = level;
     lv.classList.remove('flash'); void lv.offsetWidth; lv.classList.add('flash');
     beep(880, 0.15);
-    if (!workout.silentNext) say(phrases.segment(segment, level));
+    if (!workout.silentNext) {
+      const segs = workout.circuit.segments;
+      const isLast = index === segs.length - 1;
+      let ids;
+      if (index === 0 && segment.kind === 'warmup') ids = ['start', levelClip(level)];
+      else if (segment.kind === 'cooldown') ids = ['cooldown-start', levelClip(level)];
+      else ids = [segClipId(segment.label), levelClip(level), ...(isLast ? ['last-segment'] : [])];
+      speak(ids, { priority: 2 });
+    }
     workout.silentNext = false;
     bus.dispatchEvent(new CustomEvent('workout', { detail: { state: engine.state, segment, level, index } }));
   });
@@ -405,7 +440,7 @@ function openWorkout(base, difficulty = diffFor(base.id), restore = null) {
       $('w-nextup').hidden = false;
       if (workout.nextSaid !== d.index && sec <= 5) {
         workout.nextSaid = d.index;
-        say(phrases.next(next, nl));
+        speak(['coming-up', segClipId(next.label), levelClip(nl)], { priority: 2 });
       }
     } else {
       $('w-nextup').hidden = true;
@@ -413,7 +448,7 @@ function openWorkout(base, difficulty = diffFor(base.id), restore = null) {
     // Halfway cue on long segments.
     if (running && seg.duration >= 120 && workout.halfwaySaid !== d.index && d.segmentElapsed >= seg.duration / 2) {
       workout.halfwaySaid = d.index;
-      say(phrases.halfway());
+      speak(['halfway-segment']);
     }
     if (running && sec <= 3 && sec >= 1 && sec !== lastBeepSecond) beep(440, 0.08);
     lastBeepSecond = sec;
@@ -483,12 +518,12 @@ function sampleSecond() {
       engine.pause();
       w.autoPaused = true;
       $('w-paused').hidden = false;
-      say(phrases.paused());
+      speak(['paused'], { priority: 2 });
     } else if (w.autoPaused && engine.state === 'paused' && status === 'moving') {
       w.autoPaused = false;
       $('w-paused').hidden = true;
       engine.start();
-      say(phrases.resumed());
+      speak(['resumed'], { priority: 2 });
     }
   }
   if (engine.state !== 'running') return;
@@ -502,15 +537,26 @@ function sampleSecond() {
 
   // Cadence coaching.
   const coachEl = $('w-coach');
+  let fb = null;
   if (w.coach.learning) {
     coachEl.textContent = lastData.cadence != null ? 'Learning your rhythm…' : '';
     coachEl.className = 'coach learning';
   } else if (target != null && lastData.cadence != null) {
-    const fb = CadenceCoach.feedback(lastData.cadence, target);
+    fb = CadenceCoach.feedback(lastData.cadence, target);
     coachEl.textContent = { faster: `▲ Pick up the pace (${target})`, ok: `✓ On pace (${target})`, slower: `▼ Ease off (${target})` }[fb];
     coachEl.className = `coach ${fb}`;
   }
   $('m-target').textContent = target != null ? `· target ${target}` : '';
+
+  // Jessica: pace feedback, motivation, boosts, milestones.
+  const segElapsed = engine.elapsed - w.circuit.segments.slice(0, idx).reduce((a, x) => a + x.duration, 0);
+  const lines = w.talk.tick({
+    t: engine.elapsed, total: engine.total, index: idx, seg,
+    segElapsed, segRemaining: seg.duration - segElapsed,
+    isLast: idx === w.circuit.segments.length - 1,
+    feedback: fb, moving: moving && !coachAudio.speaking,
+  });
+  if (lines) speak(lines, { priority: lines[0] === 'ten-seconds' || lines[0] === 'one-minute' ? 2 : 1 });
 
   // Did the machine reach the planned level?
   const sync = $('w-sync');
@@ -543,7 +589,7 @@ function finishWorkout() {
   summary.maxMachineLevel = machine.range.max;
   saveWorkout(summary);
   beep(660, 0.4);
-  say(phrases.done(Math.round(summary.durationS / 60), summary.kcal));
+  speak(['complete'], { priority: 3 });
   showSummary(summary, w.base);
 }
 
@@ -626,7 +672,7 @@ function handleDisconnect() {
     $('w-conn').hidden = false;
     $('w-conn-text').textContent = 'Connection lost – reconnecting… (keep this app open)';
   }
-  say(phrases.lost());
+  speak(['lost'], { priority: 3 });
   tryReconnect();
 }
 async function tryReconnect() {
@@ -651,7 +697,7 @@ async function tryReconnect() {
   if (resumeAfterReconnect && engine?.state === 'paused') {
     resumeAfterReconnect = false;
     engine.start();
-    say(phrases.reconnected());
+    speak(['reconnected'], { priority: 3 });
   }
 }
 $('w-conn-retry').onclick = () => { $('w-conn-retry').hidden = true; $('w-conn-text').textContent = 'Reconnecting…'; tryReconnect(); };
@@ -674,7 +720,7 @@ function changeCeiling(delta) {
   $('w-level').textContent = engine.levelFor(idx);
   const next = workout.circuit.segments[idx + 1];
   if (next) $('w-next').textContent = `${next.label} (lvl ${engine.levelFor(idx + 1)})`;
-  if (engine.state === 'running') say(phrases.ceiling(now, engine.levelFor(idx)));
+  if (engine.state === 'running') speak(['max-level', levelClip(now)], { priority: 2 });
   persistSession();
   log(`Max level ${before} → ${now}`);
 }
@@ -800,7 +846,11 @@ window.addEventListener('keydown', (e) => {
 
 // ---------- Audio cues + screen wake lock ----------
 let audio = null;
-function unlockAudio() { audio ??= new (window.AudioContext || window.webkitAudioContext)(); audio.resume?.(); }
+function unlockAudio() {
+  audio ??= new (window.AudioContext || window.webkitAudioContext)();
+  audio.resume?.();
+  coachAudio.attach(audio);
+}
 function beep(freq, dur) {
   if (!audio) return;
   const o = audio.createOscillator(), g = audio.createGain();
