@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0e1116">
   <title>Elliptical Circuits</title>
-  <link rel="stylesheet" href="styles.css?v=19">
+  <link rel="stylesheet" href="styles.css?v=22">
 </head>
 <body>
   <header class="topbar">
@@ -18,6 +18,7 @@
     <section id="connect" class="card">
       <h2>Connect your machine</h2>
       <p class="muted">Turn on the elliptical and close the iFit app on any other device (only one app can control it at a time). Works with standard FTMS machines and iFit ellipticals (they appear as <strong>I_EL</strong>).</p>
+      <p id="resume-note" class="resume-note" hidden>⏸ You have an unfinished workout. Connect to resume it.</p>
       <div class="row">
         <button id="btn-ble" class="btn primary">Connect via Bluetooth</button>
         <button id="btn-sim" class="btn">Use simulator</button>
@@ -52,6 +53,16 @@
 
     <!-- 2. Pick a circuit -->
     <section id="picker" hidden>
+      <div id="resume-card" class="card resume" hidden>
+        <div>
+          <strong>Unfinished workout</strong>
+          <div id="resume-text" class="muted small"></div>
+        </div>
+        <div class="row">
+          <button id="resume-go" class="btn primary">Resume</button>
+          <button id="resume-discard" class="btn ghost">Discard</button>
+        </div>
+      </div>
       <div id="calib" class="card calib" hidden>
         <h2>Resistance test</h2>
         <ol class="muted small steps">
@@ -103,6 +114,10 @@
         <div id="w-diff" class="seg-ctl" role="radiogroup" aria-label="Difficulty"></div>
         <div id="w-time" class="time-ctl" aria-label="Workout time"></div>
       </div>
+      <div id="w-conn" class="banner banner-conn" hidden>
+        <span id="w-conn-text"></span>
+        <button id="w-conn-retry" class="btn" hidden>Retry</button>
+      </div>
       <div id="w-paused" class="banner banner-paused" hidden>Paused – start moving to resume</div>
       <div id="w-nextup" class="banner banner-next" hidden>
         <div>Next: <strong id="nu-label"></strong> · level <strong id="nu-level"></strong> <span id="nu-delta"></span></div>
@@ -113,6 +128,7 @@
 
       <div class="now">
         <div class="now-seg">
+          <div class="elapsed-line"><span id="w-el">0:00</span> <span class="muted">elapsed</span> · <span id="w-rem">–</span> <span class="muted">left</span></div>
           <div class="muted small">Current</div>
           <div id="w-seg" class="seg-label">Ready</div>
           <div id="w-countdown" class="countdown">--:--</div>
@@ -155,6 +171,21 @@
         <label><input type="checkbox" id="opt-voice" checked> Spoken cues</label>
         <label><input type="checkbox" id="opt-autopause" checked> Auto-pause when I stop</label>
       </div>
+      <details class="voice-settings">
+        <summary>Voice</summary>
+        <div class="row">
+          <select id="opt-voice-pick" aria-label="Coach voice"></select>
+          <button id="voice-test" class="btn">Test voice</button>
+        </div>
+        <p id="voice-hint" class="muted small">
+          For a natural, human-sounding voice: on your iPhone go to <strong>Settings → Accessibility →
+          Spoken Content → Voices → English</strong>, pick a voice such as <strong>Ava</strong> or <strong>Zoe</strong> and download the
+          <strong>Premium</strong> (or Enhanced) version. Then reopen this app – it will use it automatically.
+          (Siri's own voice isn't available to web apps.)
+        </p>
+      </details>
+      <p class="muted small tip">🎵 Tip: change songs from Control Center or the lock screen instead of switching to Spotify –
+        leaving the app can drop the Bluetooth connection. If it does drop, your workout is saved and resumes here.</p>
 
       <div id="sim-panel" class="card sim" hidden>
         <label>Simulator cadence: <strong id="sim-val">0</strong> strides/min (↑/↓ keys)
@@ -192,7 +223,7 @@
     </details>
   </main>
 
-  <footer class="muted small app-version">v19</footer>
-  <script type="module" src="src/main.js?v=19"></script>
+  <footer class="muted small app-version">v22</footer>
+  <script type="module" src="src/main.js?v=22"></script>
 </body>
 </html>

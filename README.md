@@ -15,6 +15,13 @@ A web app that plays circuit workouts on a ProForm elliptical. It connects over 
 - **Guided workout**: "Next up" countdown banner, spoken cues (segment, level, halfway), beeps,
   cadence coaching relative to your own warm-up rhythm, a check that the machine reached the level,
   and auto-pause/resume when you stop and start moving
+- **Never lose a workout**: the session in progress is saved every few seconds; if Bluetooth drops the app
+  pauses, reconnects automatically (no device picker) and carries on, and after a reload or closed tab the
+  circuits screen offers **Resume** from where you stopped
+- **Tap the circuit chart** to jump to any point; elapsed / remaining time always at the top
+- **Natural voice**: picks the best installed English voice (Premium > Enhanced > standard); see
+  *Voice* in the workout settings. Download e.g. "Ava (Premium)" under iOS Settings → Accessibility →
+  Spoken Content → Voices. Siri's voice isn't available to web apps
 - **Summary screen** with time, distance, kcal, watts, level, cadence, "on pace" %, and a chart; past
   workouts are saved on the device under *Recent workouts*
 - Manual −/+ override for the current segment; screen kept awake while riding
@@ -101,6 +108,8 @@ src/
   workout/coach.js      relative cadence targets + auto-pause detection
   workout/recorder.js   per-second samples → workout summary
   workout/history.js    saved workouts (localStorage)
+  workout/session.js    workout in progress, for resume after a drop or reload
+  ui/voice.js           voice ranking/picking + coach phrases
   ui/summary-chart.js   level / watts / cadence chart
   ui/profile-chart.js   SVG circuit profile with playhead
   main.js               UI wiring + telemetry bus for the 3D phase

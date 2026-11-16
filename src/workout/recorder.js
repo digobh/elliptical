@@ -39,7 +39,9 @@ export class WorkoutRecorder {
       return a.length >= 2 ? Math.max(0, a[a.length - 1] - a[0]) : null;
     };
 
-    const duration = s.length ? s[s.length - 1].t - s[0].t : 0;
+    // One sample per second of riding; jumps on the timeline don't count as time.
+    const duration = Math.max(0, s.length - 1);
+    const dt = (i) => Math.min(2, Math.max(0, s[i].t - s[i - 1].t)); // ignore jumps
     const power = vals('powerW');
     const speed = vals('speedKmh');
 
@@ -47,14 +49,14 @@ export class WorkoutRecorder {
     let distanceM = span('distanceM');
     if (!distanceM) {
       distanceM = 0;
-      for (let i = 1; i < s.length; i++) distanceM += ((s[i].speedKmh ?? 0) / 3.6) * (s[i].t - s[i - 1].t);
+      for (let i = 1; i < s.length; i++) distanceM += ((s[i].speedKmh ?? 0) / 3.6) * dt(i);
     }
     // Calories: machine counter if available, else from work done (≈24 % efficiency).
     let kcal = span('kcal');
     let kcalEstimated = false;
     if (!kcal) {
       let joules = 0;
-      for (let i = 1; i < s.length; i++) joules += (s[i].powerW ?? 0) * (s[i].t - s[i - 1].t);
+      for (let i = 1; i < s.length; i++) joules += (s[i].powerW ?? 0) * dt(i);
       kcal = joules / 4184 / 0.24;
       kcalEstimated = true;
     }
@@ -81,6 +83,16 @@ export class WorkoutRecorder {
       avgHeartRate: avg(vals('heartRate')) != null ? Math.round(avg(vals('heartRate'))) : null,
       cadenceZonePct: withTarget.length ? Math.round((inZone.length / withTarget.length) * 100) : null,
     };
+  }
+
+  /** Plain data for saving an unfinished session. */
+  toJSON() { return { meta: this.meta, samples: this.samples, startedAt: this.startedAt }; }
+
+  static fromJSON(o, circuit) {
+    const r = new WorkoutRecorder({ circuit, difficulty: o.meta.difficulty, machineKind: o.meta.machineKind });
+    r.samples = o.samples ?? [];
+    r.startedAt = o.startedAt ?? null;
+    return r;
   }
 
   /** Down-sampled series for the summary chart (≤ 300 points). */

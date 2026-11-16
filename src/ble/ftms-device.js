@@ -6,7 +6,7 @@ import {
   UUID, OP,
   parseCrossTrainerData, parseIndoorBikeData, parseResistanceRange,
   parseFeatures, encodeSetResistance, parseControlResponse,
-} from './ftms-parse.js?v=19';
+} from './ftms-parse.js?v=22';
 
 const FTMS_FULL = '00001826-0000-1000-8000-00805f9b34fb';
 const DEFAULT_RANGE = { min: 1, max: 24, step: 1 };
@@ -44,11 +44,14 @@ export class FtmsMachine extends EventTarget {
       optionalServices: [FTMS_FULL],
     });
     this.name = this._device.name || 'FTMS machine';
-    this._device.addEventListener('gattserverdisconnected', () => {
-      this.connected = false;
-      this.log('Disconnected');
-      this.dispatchEvent(new Event('disconnect'));
-    });
+    if (!this._onDisc) {
+      this._onDisc = () => {
+        this.connected = false;
+        this.log('Disconnected');
+        this.dispatchEvent(new Event('disconnect'));
+      };
+      this._device.addEventListener('gattserverdisconnected', this._onDisc);
+    }
 
     this.log(`Connecting to ${this.name}…`);
     const server = this._device.gatt.connected ? this._device.gatt : await this._device.gatt.connect();
@@ -71,9 +74,10 @@ export class FtmsMachine extends EventTarget {
       try { dataChar = await svc.getCharacteristic(uuid); parser = fn; break; } catch { /* try next */ }
     }
     if (dataChar) {
-      dataChar.addEventListener('characteristicvaluechanged', (e) => {
-        this.dispatchEvent(new CustomEvent('data', { detail: parser(e.target.value) }));
-      });
+      this._parser = parser;
+      this._onData ??= (e) => this.dispatchEvent(new CustomEvent('data', { detail: this._parser(e.target.value) }));
+      dataChar.removeEventListener?.('characteristicvaluechanged', this._onData); // reconnects
+      dataChar.addEventListener('characteristicvaluechanged', this._onData);
       await dataChar.startNotifications();
       this.log(parser === parseCrossTrainerData ? 'Streaming cross-trainer data' : 'Streaming indoor-bike data');
     } else {
@@ -82,13 +86,15 @@ export class FtmsMachine extends EventTarget {
 
     // Control point: subscribe to indications BEFORE writing, then request control.
     this._cp = await svc.getCharacteristic(UUID.CONTROL_POINT);
-    this._cp.addEventListener('characteristicvaluechanged', (e) => {
+    this._onCp ??= (e) => {
       const res = parseControlResponse(e.target.value);
       if (!res) return;
       const resolve = this._pending.get(res.opCode);
       this._pending.delete(res.opCode);
       resolve?.(res);
-    });
+    };
+    this._cp.removeEventListener?.('characteristicvaluechanged', this._onCp);
+    this._cp.addEventListener('characteristicvaluechanged', this._onCp);
     await this._cp.startNotifications();
 
     const ctl = await this._command(new Uint8Array([OP.REQUEST_CONTROL]));
@@ -132,6 +138,13 @@ export class FtmsMachine extends EventTarget {
     if (res.ok) this._lastSentLevel = clamped;
     this.log(`Set resistance ${clamped}: ${res.message}`);
     return res;
+  }
+
+  /** Reconnect to the same device without the picker. */
+  async reconnect() {
+    this._lastSentLevel = null;
+    this._pending.clear();
+    return this.connect(this._device);
   }
 
   async disconnect() {

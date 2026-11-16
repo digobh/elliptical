@@ -7,7 +7,7 @@
 //   'segment'  { index, segment, level }
 //   'tick'     { elapsed, total, index, segmentElapsed, segmentRemaining, level }
 
-import { totalDuration, pctToLevel } from './circuits.js?v=19';
+import { totalDuration, pctToLevel } from './circuits.js?v=22';
 
 export class WorkoutEngine extends EventTarget {
   constructor(machine, { now = () => performance.now() } = {}) {
@@ -79,6 +79,25 @@ export class WorkoutEngine extends EventTarget {
     this.update();
   }
 
+  /**
+   * Jump to any time in the circuit (timeline tap, or resuming a saved session).
+   * Before the workout has started this leaves it paused at that point.
+   */
+  seek(seconds) {
+    if (!this.circuit) return;
+    const t = Math.max(0, Math.min(this.total - 1, seconds));
+    this._elapsedBefore = t;
+    this._resumedAt = this.now();
+    this.index = -1;                       // force the segment's level to be (re)sent
+    if (this.state === 'idle' || this.state === 'finished') this._setState('paused');
+    this.update();
+  }
+
+  /** Send the current segment's level again (e.g. after a Bluetooth reconnect). */
+  reapply() {
+    if (this.index >= 0) this._apply();
+  }
+
   /** Manual nudge from the rider; resets when the next segment begins. */
   nudge(delta) {
     if (this.index < 0) return;
@@ -107,6 +126,7 @@ export class WorkoutEngine extends EventTarget {
   /** Call regularly (the app does it ~4×/s). Safe to call any time. */
   update() {
     if (!this.circuit || this.state === 'idle') return;
+    // (also runs while paused, so a seek updates the segment and level)
     const elapsed = this.elapsed;
     if (elapsed >= this.total && this.state === 'running') {
       this._elapsedBefore = this.total;

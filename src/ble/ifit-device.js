@@ -12,9 +12,9 @@ import {
   IFIT, MAX_LEVEL, PRE_UNLOCK, POST_UNLOCK, POLL_CYCLE, RESISTANCE_SLOT, CMD, STATUS,
   resistancePackets, parseIfitPacket, toHex, frame, findAck,
   packetize, message, resistanceMessage, Reassembler, replyInfo, parsePollA,
-} from './ifit-protocol.js?v=19';
-import { UNLOCK_KEYS } from './ifit-keys.js?v=19';
-import { PROFILE_420E } from './ifit-420e.js?v=19';
+} from './ifit-protocol.js?v=22';
+import { UNLOCK_KEYS } from './ifit-keys.js?v=22';
+import { PROFILE_420E } from './ifit-420e.js?v=22';
 
 const KEY_STORE = 'ifit-unlock-key';
 const loadKey = () => { try { return localStorage.getItem(KEY_STORE); } catch { return null; } };
@@ -53,19 +53,25 @@ export class IfitMachine extends EventTarget {
   async connect(device) {
     this._device = device;
     this.name = device.name || this.name;
-    device.addEventListener('gattserverdisconnected', () => {
-      this._running = false;
-      this.connected = false;
-      this.log(`Disconnected (received ${this._rx} packets)`);
-      this.dispatchEvent(new Event('disconnect'));
-    });
+    if (!this._onDisc) {
+      this._onDisc = () => {
+        this._running = false;
+        this.connected = false;
+        this.log(`Disconnected (received ${this._rx} packets)`);
+        this.dispatchEvent(new Event('disconnect'));
+      };
+      device.addEventListener('gattserverdisconnected', this._onDisc);
+    }
 
     this.log(`Connecting to ${this.name} (iFit protocol)…`);
     const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
     const svc = await server.getPrimaryService(IFIT.SERVICE);
     this._write = await svc.getCharacteristic(IFIT.WRITE);
     const notify = await svc.getCharacteristic(IFIT.NOTIFY);
-    notify.addEventListener('characteristicvaluechanged', (e) => this._onNotify(e.target.value));
+    this._onNotifyBound ??= (e) => this._onNotify(e.target.value);
+    this._notifyChar?.removeEventListener?.('characteristicvaluechanged', this._onNotifyBound);
+    notify.addEventListener('characteristicvaluechanged', this._onNotifyBound);
+    this._notifyChar = notify;
     await notify.startNotifications();
 
     // 1. Identify the console, exactly like the iFit app.
@@ -83,7 +89,7 @@ export class IfitMachine extends EventTarget {
       this.log('Console ready');
       this.connected = true;
       this._running = true;
-      this._poll420E();
+      this._pollPromise = this._poll420E();
       return this;
     }
     this.log(`420E key: ${res ? verdictOf(res.status) : 'no reply'} – trying other known consoles…`);
@@ -96,24 +102,34 @@ export class IfitMachine extends EventTarget {
     this.log(`Console ready${this.unlocked ? '' : ' (READ-ONLY: no unlock key accepted)'}`);
     this.connected = true;
     this._running = true;
-    this._pollQz();
+    this._pollPromise = this._pollQz();
     return this;
   }
 
   // ---------------------------------------------------------------- 420E path
 
-  /** Send one complete message and resolve with the console's reply info (or null). */
-  async _request(msg, timeoutMs = 1500) {
-    const reply = new Promise((resolve) => {
-      const entry = { resolve };
-      this._replyQueue.push(entry);
-      setTimeout(() => {
-        const i = this._replyQueue.indexOf(entry);
-        if (i >= 0) { this._replyQueue.splice(i, 1); resolve(null); }
-      }, timeoutMs);
-    });
-    for (const p of packetize(msg)) await this._send(p);
-    return reply;
+  /**
+   * Send one complete message and resolve with the console's reply info (or null).
+   * Messages are strictly serialised – one in flight at a time, like the iFit app –
+   * so callers running concurrently (poll loop, start/stop workout) never
+   * interleave their packets.
+   */
+  _request(msg, timeoutMs = 1500) {
+    const run = async () => {
+      const reply = new Promise((resolve) => {
+        const entry = { resolve };
+        this._replyQueue.push(entry);
+        setTimeout(() => {
+          const i = this._replyQueue.indexOf(entry);
+          if (i >= 0) { this._replyQueue.splice(i, 1); resolve(null); }
+        }, timeoutMs);
+      });
+      for (const p of packetize(msg)) await this._send(p);
+      return reply;
+    };
+    const result = (this._tx ?? Promise.resolve()).then(run, run);
+    this._tx = result.catch(() => null);
+    return result;
   }
 
   async _poll420E() {
@@ -262,6 +278,23 @@ export class IfitMachine extends EventTarget {
       this.log(`console: level ${this._state.resistance ?? '?'} · ${this._state.powerW ?? '?'} W · ${this._state.speedKmh ?? '?'} km/h`);
     }
     this.dispatchEvent(new CustomEvent('data', { detail: { ...this._state } }));
+  }
+
+  /** Reconnect to the same device (no picker) and redo identify/unlock/setup. */
+  async reconnect() {
+    this._running = false;
+    this._reasm = new Reassembler();
+    this._replyQueue.forEach((w) => w.resolve(null));
+    this._replyQueue = [];
+    this._pendingLevel = null;
+    this._started = false;
+    this._qzMode = false;
+    this.profile = null;
+    this.unlocked = false;
+    // Wait for the old poll loop to finish its last message, so no stray packet
+    // lands in the middle of the new start-up sequence.
+    await Promise.race([this._pollPromise, sleep(3000)]);
+    return this.connect(this._device);
   }
 
   /** Queued and sent before the next poll (≤ 0.5 s). */

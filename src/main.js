@@ -1,17 +1,19 @@
-import { FtmsMachine } from './ble/ftms-device.js?v=19';
-import { pickAndConnect } from './ble/connect.js?v=19';
-import { SimulatedMachine } from './ble/simulator.js?v=19';
-import { inspectDevice } from './ble/inspector.js?v=19';
-import { describeError } from './errors.js?v=19';
-import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=19';
-import { WorkoutEngine } from './workout/engine.js?v=19';
-import { renderProfile } from './ui/profile-chart.js?v=19';
-import { renderSummaryChart } from './ui/summary-chart.js?v=19';
-import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty, ceilingFor } from './workout/difficulty.js?v=19';
-import { applyDuration, durationLimits } from './workout/duration.js?v=19';
-import { WorkoutRecorder } from './workout/recorder.js?v=19';
-import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=19';
-import { loadHistory, saveWorkout } from './workout/history.js?v=19';
+import { FtmsMachine } from './ble/ftms-device.js?v=22';
+import { pickAndConnect } from './ble/connect.js?v=22';
+import { SimulatedMachine } from './ble/simulator.js?v=22';
+import { inspectDevice } from './ble/inspector.js?v=22';
+import { describeError } from './errors.js?v=22';
+import { CIRCUITS, totalDuration, pctToLevel } from './workout/circuits.js?v=22';
+import { WorkoutEngine } from './workout/engine.js?v=22';
+import { renderProfile } from './ui/profile-chart.js?v=22';
+import { renderSummaryChart } from './ui/summary-chart.js?v=22';
+import { DIFFICULTIES, DIFFICULTY_KEYS, applyDifficulty, ceilingFor } from './workout/difficulty.js?v=22';
+import { applyDuration, durationLimits } from './workout/duration.js?v=22';
+import { WorkoutRecorder } from './workout/recorder.js?v=22';
+import { CadenceCoach, MovementWatcher } from './workout/coach.js?v=22';
+import { loadHistory, saveWorkout } from './workout/history.js?v=22';
+import { saveSession, loadSession, clearSession } from './workout/session.js?v=22';
+import { Voice, phrases, voiceQuality } from './ui/voice.js?v=22';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => {
@@ -53,6 +55,8 @@ if (!FtmsMachine.isSupported()) {
   $('btn-inspect').disabled = true;
 }
 
+$('resume-note').hidden = !loadSession();
+
 async function runInspector(mode) {
   const pre = $('inspect-out');
   pre.hidden = false;
@@ -89,10 +93,7 @@ async function copyText(text) {
 async function useMachine(m, { connected = false } = {}) {
   if (!connected) m.addEventListener('log', (e) => log(e.detail));
   m.addEventListener('data', (e) => onData(e.detail));
-  m.addEventListener('disconnect', () => {
-    setStatus('Disconnected', 'pill-off');
-    if (engine?.state === 'running') engine.pause();
-  });
+  m.addEventListener('disconnect', handleDisconnect);
   if (!connected) await m.connect();
   machine = m;
   setStatus(m.kind === 'sim' ? 'Simulator' : `Connected: ${m.name}`, m.kind === 'sim' ? 'pill-sim' : 'pill-on');
@@ -208,7 +209,27 @@ function diffControl(container, current, onPick, { small = false } = {}) {
 }
 
 // ---------- Circuit picker ----------
+function renderResumeCard() {
+  const saved = loadSession();
+  const base = saved && CIRCUITS.find((c) => c.id === saved.baseId);
+  $('resume-card').hidden = !base;
+  if (!base) return;
+  const total = saved.circuit.segments.reduce((t, x) => t + x.duration, 0);
+  $('resume-text').textContent = `${saved.circuit.name} · ${DIFFICULTIES[saved.difficulty]?.label ?? ''} – stopped at ${fmt(saved.elapsed)} of ${fmt(total)}`;
+  $('resume-go').onclick = () => openWorkout(base, saved.difficulty, saved);
+  $('resume-discard').onclick = () => {
+    if (!confirm('Discard the unfinished workout?')) return;
+    // keep what was done: save it to history as a partial workout
+    const rec = WorkoutRecorder.fromJSON(saved.recorder, saved.circuit);
+    const sum = rec.summary({ total });
+    if (sum.durationS >= 20) { sum.series = rec.series(); sum.ceiling = saved.ceiling; sum.maxMachineLevel = machine.range.max; saveWorkout(sum); }
+    clearSession();
+    renderPicker();
+  };
+}
+
 function renderPicker() {
+  renderResumeCard();
   const r = machine.range;
   const who = machine.profile?.name ?? (machine.kind === 'sim' ? 'Simulator' : machine.name);
   $('range-note').textContent = `${who}: resistance levels ${r.min}–${r.max}. Circuits are scaled to this range.`;
@@ -261,33 +282,52 @@ function renderHistory() {
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${m ?? 0} m`);
 
 // ---------- Voice ----------
-function say(text) {
-  if (!$('opt-voice').checked || !('speechSynthesis' in window)) return;
-  try {
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = 1.05;
-    speechSynthesis.speak(u);
-  } catch { /* not available */ }
+const voice = new Voice();
+voice.enabled = $('opt-voice').checked;
+voice.use(prefs.get('voiceURI', null));
+const say = (text) => voice.say(text);
+$('opt-voice').addEventListener('change', (e) => { voice.enabled = e.target.checked; });
+
+function renderVoices(list = voice.list()) {
+  const sel = $('opt-voice-pick');
+  sel.replaceChildren();
+  if (!list.length) {
+    sel.append(new Option(voice.supported ? 'Default voice' : 'Speech not supported', ''));
+    return;
+  }
+  sel.append(new Option(`Best available (${voice.voice?.name ?? '–'})`, ''));
+  for (const v of list) sel.append(new Option(`${v.name} · ${voiceQuality(v)} (${v.lang})`, v.voiceURI));
+  sel.value = prefs.get('voiceURI', '') ?? '';
+  const best = list[0];
+  $('voice-hint').hidden = voiceQuality(best) !== 'Standard';
 }
-const spokenDuration = (s) => (s >= 60 && s % 60 === 0 ? `${s / 60} minute${s === 60 ? '' : 's'}` : s >= 60 ? `${Math.floor(s / 60)} minutes ${s % 60} seconds` : `${s} seconds`);
+voice.onvoices = (list) => renderVoices(list);
+renderVoices();
+$('opt-voice-pick').onchange = (e) => { prefs.set('voiceURI', e.target.value || null); voice.use(e.target.value); };
+$('voice-test').onclick = () => { unlockAudio(); voice.say("Hi! I'll be your coach today. Sprint, level 8, for 30 seconds. Let's go!", { force: true }); };
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------- Workout ----------
 let lastData = {};
 let workout = null; // { base, circuit, difficulty, recorder, coach, watcher, autoPaused, sampler }
 
-function openWorkout(base, difficulty = diffFor(base.id)) {
+/** `restore`: a saved session (see session.js) to continue from. */
+function openWorkout(base, difficulty = diffFor(base.id), restore = null) {
   clearInterval(ticker);
   clearInterval(workout?.sampler);
-  const circuit = buildCircuit(base, difficulty);
+  const circuit = restore?.circuit ?? buildCircuit(base, difficulty);
   engine = new WorkoutEngine(machine);
   engine.load(circuit);
-  engine.setCeiling(ceilingFor(difficulty, machine.range));
+  engine.setCeiling(restore?.ceiling ?? ceilingFor(difficulty, machine.range));
   chart = renderProfile($('w-profile'), circuit, { height: 100 });
+  const coach = new CadenceCoach();
+  if (restore?.coachBaseline) coach.baseline = restore.coachBaseline;
   workout = {
     base, circuit, difficulty,
-    recorder: new WorkoutRecorder({ circuit, difficulty, machineKind: machine.kind }),
-    coach: new CadenceCoach(),
+    recorder: restore?.recorder ? WorkoutRecorder.fromJSON(restore.recorder, circuit)
+      : new WorkoutRecorder({ circuit, difficulty, machineKind: machine.kind }),
+    coach,
     watcher: new MovementWatcher(),
     autoPaused: false,
     halfwaySaid: -1,
@@ -298,6 +338,8 @@ function openWorkout(base, difficulty = diffFor(base.id)) {
   $('w-total').textContent = fmt(engine.total);
   $('w-seg').textContent = 'Ready';
   $('w-countdown').textContent = fmt(circuit.segments[0].duration);
+  $('w-el').textContent = '0:00';
+  $('w-rem').textContent = fmt(engine.total);
   $('w-next').textContent = `${circuit.segments[0].label} (lvl ${engine.levelFor(0)})`;
   $('w-level').textContent = engine.levelFor(0);
   showCeiling();
@@ -323,7 +365,8 @@ function openWorkout(base, difficulty = diffFor(base.id)) {
     lv.textContent = level;
     lv.classList.remove('flash'); void lv.offsetWidth; lv.classList.add('flash');
     beep(880, 0.15);
-    say(`${segment.label}. Level ${level}. ${spokenDuration(segment.duration)}.`);
+    if (!workout.silentNext) say(phrases.segment(segment, level));
+    workout.silentNext = false;
     bus.dispatchEvent(new CustomEvent('workout', { detail: { state: engine.state, segment, level, index } }));
   });
 
@@ -334,6 +377,8 @@ function openWorkout(base, difficulty = diffFor(base.id)) {
     chart.setProgress(d.elapsed, d.index);
     $('w-countdown').textContent = fmt(d.segmentRemaining);
     $('m-elapsed').textContent = fmt(d.elapsed);
+    $('w-el').textContent = fmt(d.elapsed);
+    $('w-rem').textContent = fmt(d.total - d.elapsed);
     const sec = Math.ceil(d.segmentRemaining);
     const running = engine.state === 'running';
 
@@ -349,7 +394,7 @@ function openWorkout(base, difficulty = diffFor(base.id)) {
       $('w-nextup').hidden = false;
       if (workout.nextSaid !== d.index && sec <= 5) {
         workout.nextSaid = d.index;
-        say(`Next: ${next.label}, level ${nl}.`);
+        say(phrases.next(next, nl));
       }
     } else {
       $('w-nextup').hidden = true;
@@ -357,7 +402,7 @@ function openWorkout(base, difficulty = diffFor(base.id)) {
     // Halfway cue on long segments.
     if (running && seg.duration >= 120 && workout.halfwaySaid !== d.index && d.segmentElapsed >= seg.duration / 2) {
       workout.halfwaySaid = d.index;
-      say('Halfway.');
+      say(phrases.halfway());
     }
     if (running && sec <= 3 && sec >= 1 && sec !== lastBeepSecond) beep(440, 0.08);
     lastBeepSecond = sec;
@@ -369,6 +414,7 @@ function openWorkout(base, difficulty = diffFor(base.id)) {
     $('w-diff').querySelectorAll('button').forEach((b) => { b.disabled = s !== 'idle'; });
     $('w-time').hidden = s !== 'idle';
     if (s === 'running') { keepAwake(); machine.startWorkout?.(); } else releaseWake();
+    if (s === 'paused') persistSession();
     if (s === 'finished') finishWorkout();
     bus.dispatchEvent(new CustomEvent('workout', { detail: { state: s } }));
   });
@@ -382,7 +428,33 @@ function openWorkout(base, difficulty = diffFor(base.id)) {
   $('summary').hidden = true;
   $('workout').hidden = false;
   window.scrollTo(0, 0);
+
+  if (restore) {
+    workout.silentNext = true;
+    engine.seek(restore.elapsed);          // paused at the saved point; level is sent
+    $('w-seg').textContent = `${circuit.segments[engine.index].label} – resumed`;
+    log(`Resumed ${circuit.name} at ${fmt(restore.elapsed)}`);
+  }
 }
+
+// ---------- Saving the session in progress ----------
+function persistSession() {
+  if (!workout || !engine || !['running', 'paused'].includes(engine.state)) return;
+  saveSession({
+    baseId: workout.base.id,
+    difficulty: workout.difficulty,
+    circuit: workout.circuit,
+    ceiling: engine.ceiling,
+    elapsed: Math.floor(engine.elapsed),
+    recorder: workout.recorder.toJSON(),
+    coachBaseline: workout.coach.baseline,
+  });
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') persistSession();
+  else if (machine && !machine.connected && machine.reconnect) tryReconnect();
+});
+window.addEventListener('pagehide', persistSession);
 
 /** Once a second: record, coach, check the machine level, auto-pause. */
 function sampleSecond() {
@@ -400,15 +472,16 @@ function sampleSecond() {
       engine.pause();
       w.autoPaused = true;
       $('w-paused').hidden = false;
-      say('Paused.');
+      say(phrases.paused());
     } else if (w.autoPaused && engine.state === 'paused' && status === 'moving') {
       w.autoPaused = false;
       $('w-paused').hidden = true;
       engine.start();
-      say('Resuming.');
+      say(phrases.resumed());
     }
   }
   if (engine.state !== 'running') return;
+  if (Math.floor(engine.elapsed) % 5 === 0) persistSession();
 
   const moving = MovementWatcher.isMoving(lastData);
   // Learn the rider's rhythm during the warm-up (or the first minute).
@@ -441,6 +514,7 @@ function sampleSecond() {
 function finishWorkout() {
   const w = workout;
   if (!w) return;
+  clearSession();
   clearInterval(w.sampler);
   clearInterval(ticker);
   machine.endWorkout?.();
@@ -458,7 +532,7 @@ function finishWorkout() {
   summary.maxMachineLevel = machine.range.max;
   saveWorkout(summary);
   beep(660, 0.4);
-  say(`Workout complete. ${Math.round(summary.durationS / 60)} minutes, ${summary.kcal} calories. Well done!`);
+  say(phrases.done(Math.round(summary.durationS / 60), summary.kcal));
   showSummary(summary, w.base);
 }
 
@@ -518,6 +592,59 @@ $('btn-stop').onclick = () => {
   if (engine?.state === 'running' && !confirm('End this workout?')) return;
   engine?.stop();
 };
+// Tap the circuit chart to jump to that point.
+$('w-profile').addEventListener('click', (e) => {
+  if (!engine || engine.state === 'finished') return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const t = Math.round(((e.clientX - rect.left) / rect.width) * engine.total);
+  const seg = workout.circuit.segments[engine.segmentIndexAt(Math.min(t, engine.total - 1))];
+  if (!confirm(`Jump to ${fmt(t)} (${seg.label})?`)) return;
+  engine.seek(t);
+  log(`Jumped to ${fmt(t)}`);
+  persistSession();
+});
+
+// ---------- Lost connection: pause, save, reconnect, carry on ----------
+let reconnecting = false;
+let resumeAfterReconnect = false;
+function handleDisconnect() {
+  setStatus('Reconnecting…', 'pill-off');
+  if (engine?.state === 'running') { engine.pause(); resumeAfterReconnect = true; }
+  persistSession();
+  if (!$('workout').hidden) {
+    $('w-conn').hidden = false;
+    $('w-conn-text').textContent = 'Connection lost – reconnecting… (keep this app open)';
+  }
+  say(phrases.lost());
+  tryReconnect();
+}
+async function tryReconnect() {
+  if (reconnecting || !machine?.reconnect || machine.connected) return;
+  reconnecting = true;
+  for (let i = 0; i < 15 && !machine.connected; i++) {
+    if (document.visibilityState === 'visible') {
+      try { await machine.reconnect(); } catch (e) { log(`Reconnect attempt ${i + 1} failed: ${describeError(e)}`); }
+    }
+    if (!machine.connected) await sleep(3000);
+  }
+  reconnecting = false;
+  if (!machine.connected) {
+    $('w-conn-text').textContent = 'Could not reconnect. Turn the machine on, then tap Retry.';
+    $('w-conn-retry').hidden = false;
+    return;
+  }
+  setStatus(`Connected: ${machine.name}`, 'pill-on');
+  $('w-conn').hidden = true;
+  $('w-conn-retry').hidden = true;
+  engine?.reapply();
+  if (resumeAfterReconnect && engine?.state === 'paused') {
+    resumeAfterReconnect = false;
+    engine.start();
+    say(phrases.reconnected());
+  }
+}
+$('w-conn-retry').onclick = () => { $('w-conn-retry').hidden = true; $('w-conn-text').textContent = 'Reconnecting…'; tryReconnect(); };
+
 // "Max level": change the ceiling during the workout when it is too heavy / too easy.
 function showCeiling() {
   if (!engine) return;
@@ -536,7 +663,8 @@ function changeCeiling(delta) {
   $('w-level').textContent = engine.levelFor(idx);
   const next = workout.circuit.segments[idx + 1];
   if (next) $('w-next').textContent = `${next.label} (lvl ${engine.levelFor(idx + 1)})`;
-  if (engine.state === 'running') say(`Max level ${now}. Now level ${engine.levelFor(idx)}.`);
+  if (engine.state === 'running') say(phrases.ceiling(now, engine.levelFor(idx)));
+  persistSession();
   log(`Max level ${before} → ${now}`);
 }
 $('ceil-minus').onclick = () => changeCeiling(-1);

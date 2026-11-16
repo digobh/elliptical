@@ -91,3 +91,22 @@ test('ceiling scales levels and can change mid-workout', () => {
   assert.deepEqual(m.sent, [6, 5, 8]);      // 100 % = the new ceiling
   assert.equal(e.setCeiling(99), 16);       // clamped to the machine
 });
+
+test('seek jumps to a time, applies that segment and keeps state sensible', () => {
+  let t = 0;
+  const m = fakeMachine();
+  const e = new WorkoutEngine(m, { now: () => t });
+  e.load(tiny);
+  e.seek(25);                               // before starting: paused at 25 s
+  assert.equal(e.state, 'paused');
+  assert.equal(e.index, 2);
+  assert.deepEqual(m.sent, [24]);
+  e.start();
+  t += 2000; e.update();
+  assert.equal(Math.round(e.elapsed), 27);
+  e.seek(3);                                // jump back while running
+  assert.equal(e.state, 'running');
+  assert.deepEqual(m.sent, [24, 1]);
+  e.reapply();
+  assert.deepEqual(m.sent, [24, 1, 1]);
+});
